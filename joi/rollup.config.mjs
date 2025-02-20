@@ -22,34 +22,40 @@ export default [
     output: [
       {
         file: packageJson.main,
-        format: 'cjs',
-        sourcemap: false,
-        exports: 'named',
-        name: packageJson.name,
-      },
-      {
-        file: packageJson.module,
         format: 'es',
         exports: 'named',
         sourcemap: false,
       },
     ],
+    external: ['react', 'typescript', 'class-variance-authority'],
     plugins: [
       postcss({
         plugins: [autoprefixer(), tailwindcss(tailwindConfig)],
         sourceMap: true,
-        use: ['sass'],
+        use: {
+          sass: {
+            silenceDeprecations: ['legacy-js-api'],
+            api: 'modern',
+          },
+        },
         minimize: true,
         extract: 'main.css',
       }),
+
       peerDepsExternal({ includeDependencies: true }),
-      resolve(),
       commonjs(),
+      resolve(),
       typescript({
         tsconfig: './tsconfig.json',
         typescript: typescriptEngine,
         sourceMap: false,
-        exclude: ['docs', 'dist', 'node_modules/**'],
+        exclude: [
+          'docs',
+          'dist',
+          'node_modules/**',
+          '**/*.test.ts',
+          '**/*.test.tsx',
+        ],
       }),
       terser(),
     ],

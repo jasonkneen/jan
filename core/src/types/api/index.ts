@@ -27,6 +27,12 @@ export enum NativeRoute {
 
   quickAskSizeUpdated = 'quickAskSizeUpdated',
   ackDeepLink = 'ackDeepLink',
+  factoryReset = 'factoryReset',
+
+  startServer = 'startServer',
+  stopServer = 'stopServer',
+
+  appUpdateDownload = 'appUpdateDownload',
 }
 
 /**
@@ -40,14 +46,14 @@ export enum AppRoute {
   dirName = 'dirName',
   isSubdirectory = 'isSubdirectory',
   baseName = 'baseName',
-  startServer = 'startServer',
-  stopServer = 'stopServer',
   log = 'log',
   systemInformation = 'systemInformation',
   showToast = 'showToast',
 }
 
 export enum AppEvent {
+  onAppUpdateNotAvailable = 'onAppUpdateNotAvailable',
+  onAppUpdateAvailable = 'onAppUpdateAvailable',
   onAppUpdateDownloadUpdate = 'onAppUpdateDownloadUpdate',
   onAppUpdateDownloadError = 'onAppUpdateDownloadError',
   onAppUpdateDownloadSuccess = 'onAppUpdateDownloadSuccess',
@@ -65,13 +71,14 @@ export enum DownloadRoute {
   pauseDownload = 'pauseDownload',
   resumeDownload = 'resumeDownload',
   getDownloadProgress = 'getDownloadProgress',
-  getFileSize = 'getFileSize',
 }
 
 export enum DownloadEvent {
   onFileDownloadUpdate = 'onFileDownloadUpdate',
   onFileDownloadError = 'onFileDownloadError',
   onFileDownloadSuccess = 'onFileDownloadSuccess',
+  onFileDownloadStopped = 'onFileDownloadStopped',
+  onFileDownloadStarted = 'onFileDownloadStarted',
   onFileUnzipSuccess = 'onFileUnzipSuccess',
 }
 

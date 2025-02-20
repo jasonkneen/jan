@@ -1,7 +1,5 @@
 import React from 'react'
 
-import { ModelMetadata } from '@janhq/core'
-import { Badge } from '@janhq/joi'
 import { useAtomValue } from 'jotai'
 
 import { useActiveModel } from '@/hooks/useActiveModel'
@@ -19,18 +17,11 @@ import {
 } from '@/helpers/atoms/SystemBar.atom'
 
 type Props = {
-  metadata: ModelMetadata
+  size?: number
   compact?: boolean
 }
-const UnsupportedModel = () => {
-  return (
-    <Badge className="space-x-1 rounded-md" theme="warning">
-      <span>Coming Soon</span>
-    </Badge>
-  )
-}
 
-const ModelLabel = ({ metadata, compact }: Props) => {
+const ModelLabel = ({ size, compact }: Props) => {
   const { activeModel } = useActiveModel()
   const totalRam = useAtomValue(totalRamAtom)
   const usedRam = useAtomValue(usedRamAtom)
@@ -38,15 +29,20 @@ const ModelLabel = ({ metadata, compact }: Props) => {
   const { settings } = useSettings()
 
   const getLabel = (size: number) => {
-    const minimumRamModel = size * 1.25
-    const availableRam =
-      settings?.run_mode === 'gpu'
-        ? availableVram * 1000000 // MB to bytes
-        : totalRam - usedRam + (activeModel?.metadata.size ?? 0)
+    const minimumRamModel = (size * 1.25) / (1024 * 1024)
+
+    const availableRam = settings?.gpus?.some((gpu) => gpu.activated)
+      ? availableVram * 1000000 // MB to bytes
+      : totalRam -
+        (usedRam +
+          (activeModel?.metadata?.size
+            ? (activeModel.metadata.size * 1.25) / (1024 * 1024)
+            : 0))
+
     if (minimumRamModel > totalRam) {
       return (
         <NotEnoughMemoryLabel
-          unit={settings?.run_mode === 'gpu' ? 'VRAM' : 'RAM'}
+          unit={settings?.gpus?.some((gpu) => gpu.activated) ? 'VRAM' : 'RAM'}
           compact={compact}
         />
       )
@@ -59,11 +55,7 @@ const ModelLabel = ({ metadata, compact }: Props) => {
     return null
   }
 
-  return metadata.tags.includes('Coming Soon') ? (
-    <UnsupportedModel />
-  ) : (
-    getLabel(metadata.size ?? 0)
-  )
+  return getLabel(size ?? 0)
 }
 
 export default React.memo(ModelLabel)

@@ -10,7 +10,7 @@ export function requestInference(
   requestBody: any,
   model: {
     id: string
-    parameters: ModelRuntimeParams
+    parameters?: ModelRuntimeParams
   },
   controller?: AbortController,
   headers?: HeadersInit,
@@ -22,7 +22,9 @@ export function requestInference(
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Accept': model.parameters.stream ? 'text/event-stream' : 'application/json',
+        'Accept': model.parameters?.stream
+          ? 'text/event-stream'
+          : 'application/json',
         ...headers,
       },
       body: JSON.stringify(requestBody),
@@ -30,27 +32,41 @@ export function requestInference(
     })
       .then(async (response) => {
         if (!response.ok) {
-          const data = await response.json()
-          let errorCode = ErrorCode.Unknown
-          if (data.error) {
-            errorCode = data.error.code ?? data.error.type ?? ErrorCode.Unknown
-          } else if (response.status === 401) {
-            errorCode = ErrorCode.InvalidApiKey
+          if (response.status === 401) {
+            throw {
+              code: ErrorCode.InvalidApiKey,
+              message: 'Invalid API Key.',
+            }
           }
-          const error = {
-            message: data.error?.message ?? 'Error occurred.',
-            code: errorCode,
+          let data = await response.json()
+          try {
+            handleError(data)
+          } catch (err) {
+            subscriber.error(err)
+            return
           }
-          subscriber.error(error)
-          subscriber.complete()
-          return
         }
-        if (model.parameters.stream === false) {
+        // There could be overriden stream parameter in the model
+        // that is set in request body (transformed payload)
+        if (
+          requestBody?.stream === false ||
+          model.parameters?.stream === false
+        ) {
           const data = await response.json()
+          try {
+            handleError(data)
+          } catch (err) {
+            subscriber.error(err)
+            return
+          }
           if (transformResponse) {
             subscriber.next(transformResponse(data))
           } else {
-            subscriber.next(data.choices[0]?.message?.content ?? '')
+            subscriber.next(
+              data.choices
+                ? data.choices[0]?.message?.content
+                : (data.content[0]?.text ?? '')
+            )
           }
         } else {
           const stream = response.body
@@ -75,6 +91,12 @@ export function requestInference(
                   const toParse = cachedLines + line
                   if (!line.includes('data: [DONE]')) {
                     const data = JSON.parse(toParse.replace('data: ', ''))
+                    try {
+                      handleError(data)
+                    } catch (err) {
+                      subscriber.error(err)
+                      return
+                    }
                     content += data.choices[0]?.delta?.content ?? ''
                     if (content.startsWith('assistant: ')) {
                       content = content.replace('assistant: ', '')
@@ -92,4 +114,19 @@ export function requestInference(
       })
       .catch((err) => subscriber.error(err))
   })
+}
+
+/**
+ * Handle error and normalize it to a common format.
+ * @param data
+ */
+const handleError = (data: any) => {
+  if (
+    data.error ||
+    data.message ||
+    data.detail ||
+    (Array.isArray(data) && data.length && data[0].error)
+  ) {
+    throw data.error ?? data[0]?.error ?? data
+  }
 }

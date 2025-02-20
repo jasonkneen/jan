@@ -1,4 +1,9 @@
-import { DownloadRequest, FileStat, NetworkConfig, SystemInformation } from '../types'
+import {
+  DownloadRequest,
+  FileStat,
+  NetworkConfig,
+  SystemInformation,
+} from '../types'
 
 /**
  * Execute a extension module function in main process
@@ -9,11 +14,12 @@ import { DownloadRequest, FileStat, NetworkConfig, SystemInformation } from '../
  * @returns   Promise<any>
  *
  */
-const executeOnMain: (extension: string, method: string, ...args: any[]) => Promise<any> = (
-  extension,
-  method,
-  ...args
-) => globalThis.core?.api?.invokeExtensionFunc(extension, method, ...args)
+const executeOnMain: (
+  extension: string,
+  method: string,
+  ...args: any[]
+) => Promise<any> = (extension, method, ...args) =>
+  globalThis.core?.api?.invokeExtensionFunc(extension, method, ...args)
 
 /**
  * Downloads a file from a URL and saves it to the local file system.
@@ -23,19 +29,11 @@ const executeOnMain: (extension: string, method: string, ...args: any[]) => Prom
  *
  * @returns {Promise<any>} A promise that resolves when the file is downloaded.
  */
-const downloadFile: (downloadRequest: DownloadRequest, network?: NetworkConfig) => Promise<any> = (
-  downloadRequest,
-  network
-) => globalThis.core?.api?.downloadFile(downloadRequest, network)
-
-/**
- * Get unit in bytes for a remote file.
- *
- * @param url - The url of the file.
- * @returns {Promise<number>} - A promise that resolves with the file size.
- */
-const getFileSize: (url: string) => Promise<number> = (url: string) =>
-  globalThis.core.api?.getFileSize(url)
+const downloadFile: (
+  downloadRequest: DownloadRequest,
+  network?: NetworkConfig
+) => Promise<any> = (downloadRequest, network) =>
+  globalThis.core?.api?.downloadFile(downloadRequest, network)
 
 /**
  * Aborts the download of a specific file.
@@ -50,7 +48,8 @@ const abortDownload: (fileName: string) => Promise<any> = (fileName) =>
  *
  * @returns {Promise<string>} A Promise that resolves with Jan's data folder path.
  */
-const getJanDataFolderPath = (): Promise<string> => globalThis.core.api?.getJanDataFolderPath()
+const getJanDataFolderPath = (): Promise<string> =>
+  globalThis.core.api?.getJanDataFolderPath()
 
 /**
  * Opens the file explorer at a specific path.
@@ -73,14 +72,16 @@ const joinPath: (paths: string[]) => Promise<string> = (paths) =>
  * @param path - The file path to retrieve dirname.
  * @returns {Promise<string>} A promise that resolves the dirname.
  */
-const dirName: (path: string) => Promise<string> = (path) => globalThis.core.api?.dirName(path)
+const dirName: (path: string) => Promise<string> = (path) =>
+  globalThis.core.api?.dirName(path)
 
 /**
  * Retrieve the basename from an url.
  * @param path - The path to retrieve.
  * @returns {Promise<string>} A promise that resolves with the basename.
  */
-const baseName: (paths: string) => Promise<string> = (path) => globalThis.core.api?.baseName(path)
+const baseName: (paths: string) => Promise<string> = (path) =>
+  globalThis.core.api?.baseName(path)
 
 /**
  * Opens an external URL in the default web browser.
@@ -96,13 +97,15 @@ const openExternalUrl: (url: string) => Promise<any> = (url) =>
  *
  * @returns {Promise<string>} - A promise that resolves with the resource path.
  */
-const getResourcePath: () => Promise<string> = () => globalThis.core.api?.getResourcePath()
+const getResourcePath: () => Promise<string> = () =>
+  globalThis.core.api?.getResourcePath()
 
 /**
  * Gets the user's home path.
  * @returns return user's home path
  */
-const getUserHomePath = (): Promise<string> => globalThis.core.api?.getUserHomePath()
+const getUserHomePath = (): Promise<string> =>
+  globalThis.core.api?.getUserHomePath()
 
 /**
  * Log to file from browser processes.
@@ -120,8 +123,10 @@ const log: (message: string, fileName?: string) => void = (message, fileName) =>
  *
  * @returns {Promise<boolean>} - A promise that resolves with a boolean indicating whether the path is a subdirectory.
  */
-const isSubdirectory: (from: string, to: string) => Promise<boolean> = (from: string, to: string) =>
-  globalThis.core.api?.isSubdirectory(from, to)
+const isSubdirectory: (from: string, to: string) => Promise<boolean> = (
+  from: string,
+  to: string
+) => globalThis.core.api?.isSubdirectory(from, to)
 
 /**
  * Get system information
@@ -167,7 +172,5 @@ export {
   getUserHomePath,
   systemInformation,
   showToast,
-  getFileSize,
   dirName,
-  FileStat,
 }

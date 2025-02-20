@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Slider, Input, Tooltip } from '@janhq/joi'
 
@@ -31,6 +31,10 @@ const SliderRightPanel = ({
   const [val, setVal] = useState(value.toString())
 
   useClickOutside(() => setShowTooltip({ max: false, min: false }), null, [])
+
+  useEffect(() => {
+    setVal(value.toString())
+  }, [value])
 
   return (
     <div className="flex flex-col">
@@ -69,7 +73,7 @@ const SliderRightPanel = ({
           trigger={
             <Input
               type="text"
-              className="-mt-4 h-8 w-[60px]"
+              className="-mt-4 h-8 w-[68px]"
               min={min}
               max={max}
               value={val}

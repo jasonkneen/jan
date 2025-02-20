@@ -1,7 +1,6 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useCallback, useState } from 'react'
 
 import { Progress } from '@janhq/joi'
-import { useClickOutside } from '@janhq/joi'
 import { useAtom, useAtomValue } from 'jotai'
 import {
   MonitorIcon,
@@ -17,7 +16,7 @@ import useGetSystemResources from '@/hooks/useGetSystemResources'
 
 import { usePath } from '@/hooks/usePath'
 
-import { toGibibytes } from '@/utils/converter'
+import { toGigabytes } from '@/utils/converter'
 
 import { utilizedMemory } from '@/utils/memory'
 
@@ -44,42 +43,33 @@ const SystemMonitor = () => {
   const [showSystemMonitorPanel, setShowSystemMonitorPanel] = useAtom(
     showSystemMonitorPanelAtom
   )
-  const [control, setControl] = useState<HTMLDivElement | null>(null)
-  const [elementExpand, setElementExpand] = useState<HTMLDivElement | null>(
-    null
-  )
+
   const reduceTransparent = useAtomValue(reduceTransparentAtom)
 
   const { watch, stopWatching } = useGetSystemResources()
-  useClickOutside(
-    () => {
-      setShowSystemMonitorPanel(false)
-      setShowFullScreen(false)
+
+  const toggleShowSystemMonitorPanel = useCallback(
+    (isShow: boolean) => {
+      setShowSystemMonitorPanel(isShow)
+      if (isShow) {
+        watch()
+      } else {
+        stopWatching()
+      }
     },
-    null,
-    [control, elementExpand]
+    [setShowSystemMonitorPanel, stopWatching, watch]
   )
-
-  useEffect(() => {
-    // Watch for resource update
-    watch()
-
-    return () => {
-      stopWatching()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   return (
     <Fragment>
       <div
-        ref={setControl}
+        data-testid="system-monitoring"
         className={twMerge(
           'flex cursor-pointer items-center gap-x-1 rounded px-1 py-0.5 hover:bg-[hsla(var(--secondary-bg))]',
           showSystemMonitorPanel && 'bg-[hsla(var(--secondary-bg))]'
         )}
         onClick={() => {
-          setShowSystemMonitorPanel(!showSystemMonitorPanel)
+          toggleShowSystemMonitorPanel(!showSystemMonitorPanel)
           setShowFullScreen(false)
         }}
       >
@@ -88,9 +78,8 @@ const SystemMonitor = () => {
       </div>
       {showSystemMonitorPanel && (
         <div
-          ref={setElementExpand}
           className={twMerge(
-            'fixed bottom-9 left-[49px] z-50 flex w-[calc(100%-48px)] flex-shrink-0 flex-col border-t border-[hsla(var(--app-border))] bg-[hsla(var(--app-bg))]',
+            'system-monitor-panel fixed bottom-9 left-[49px] z-50 flex w-[calc(100%-48px)] flex-shrink-0 flex-col border-t border-[hsla(var(--app-border))] bg-[hsla(var(--app-bg))]',
             showFullScreen && 'h-[calc(100%-63px)]',
             reduceTransparent && 'w-[calc(100%-48px)] rounded-none'
           )}
@@ -123,7 +112,7 @@ const SystemMonitor = () => {
                 size={16}
                 className="text-[hsla(var(--text-secondary))]"
                 onClick={() => {
-                  setShowSystemMonitorPanel(false)
+                  toggleShowSystemMonitorPanel(false)
                   setShowFullScreen(false)
                 }}
               />
@@ -145,8 +134,8 @@ const SystemMonitor = () => {
                 <div className="flex items-center justify-between gap-2">
                   <h6 className="font-bold">Memory</h6>
                   <span>
-                    {toGibibytes(usedRam, { hideUnit: true })}/
-                    {toGibibytes(totalRam, { hideUnit: true })} GB
+                    {toGigabytes(usedRam, { hideUnit: true })}GB /{' '}
+                    {toGigabytes(totalRam, { hideUnit: true })}GB
                   </span>
                 </div>
                 <div className="flex items-center gap-x-4">
@@ -158,44 +147,45 @@ const SystemMonitor = () => {
                   <span className="flex-shrink-0 ">{ramUtilitized}%</span>
                 </div>
               </div>
-
               {gpus.length > 0 && (
                 <div className="mb-4 border-b border-[hsla(var(--app-border))] pb-4 last:border-none">
-                  {gpus.map((gpu, index) => {
-                    const gpuUtilization = utilizedMemory(
-                      gpu.memoryFree,
-                      gpu.memoryTotal
-                    )
-                    return (
-                      <div key={index} className="mt-4 flex flex-col gap-x-2">
-                        <div className="flex w-full items-start justify-between">
-                          <span className="line-clamp-1 w-1/2 font-bold">
-                            {gpu.name}
-                          </span>
-                          <div className="flex gap-x-2">
-                            <div className="">
-                              <span>
-                                {gpu.memoryTotal - gpu.memoryFree}/
-                                {gpu.memoryTotal}
-                              </span>
-                              <span> MB</span>
+                  {gpus
+                    .filter((gpu) => gpu.activated === true)
+                    .map((gpu, index) => {
+                      const gpuUtilization = utilizedMemory(
+                        gpu.free_vram,
+                        gpu.total_vram
+                      )
+                      return (
+                        <div key={index} className="mt-4 flex flex-col gap-x-2">
+                          <div className="flex w-full items-start justify-between">
+                            <span className="line-clamp-1 w-1/2 font-bold">
+                              {gpu.name}
+                            </span>
+                            <div className="flex gap-x-2">
+                              <div className="">
+                                <span>
+                                  {gpu.total_vram - gpu.free_vram}/
+                                  {gpu.total_vram}
+                                </span>
+                                <span> MB</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-x-4">
-                          <Progress
-                            value={gpuUtilization}
-                            className="w-full"
-                            size="small"
-                          />
-                          <span className="flex-shrink-0 ">
-                            {gpuUtilization}%
-                          </span>
+                          <div className="flex items-center gap-x-4">
+                            <Progress
+                              value={gpuUtilization}
+                              className="w-full"
+                              size="small"
+                            />
+                            <span className="flex-shrink-0 ">
+                              {gpuUtilization}%
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
                 </div>
               )}
             </div>

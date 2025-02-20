@@ -1,40 +1,35 @@
 import { useCallback } from 'react'
 
-import { Model } from '@janhq/core'
-
 import { Modal, Button, Progress, ModalClose } from '@janhq/joi'
 
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 
 import useDownloadModel from '@/hooks/useDownloadModel'
 
-import { modelDownloadStateAtom } from '@/hooks/useDownloadState'
+import {
+  modelDownloadStateAtom,
+  removeDownloadStateAtom,
+} from '@/hooks/useDownloadState'
 
 import { formatDownloadPercentage } from '@/utils/converter'
 
-import { getDownloadingModelAtom } from '@/helpers/atoms/Model.atom'
-
 type Props = {
-  model: Model
+  modelId: string
   isFromList?: boolean
 }
 
-const ModalCancelDownload = ({ model, isFromList }: Props) => {
+const ModalCancelDownload = ({ modelId, isFromList }: Props) => {
   const { abortModelDownload } = useDownloadModel()
-  const downloadingModels = useAtomValue(getDownloadingModelAtom)
+  const removeDownloadState = useSetAtom(removeDownloadStateAtom)
   const allDownloadStates = useAtomValue(modelDownloadStateAtom)
-  const downloadState = allDownloadStates[model.id]
+  const downloadState = allDownloadStates[modelId]
 
-  const cancelText = `Cancel ${formatDownloadPercentage(downloadState.percent)}`
+  const cancelText = `Cancel ${formatDownloadPercentage(downloadState?.percent ?? 0)}`
 
   const onAbortDownloadClick = useCallback(() => {
-    if (downloadState?.modelId) {
-      const model = downloadingModels.find(
-        (model) => model.id === downloadState.modelId
-      )
-      if (model) abortModelDownload(model)
-    }
-  }, [downloadState, downloadingModels, abortModelDownload])
+    removeDownloadState(modelId)
+    abortModelDownload(downloadState?.modelId ?? modelId)
+  }, [downloadState, abortModelDownload, removeDownloadState, modelId])
 
   return (
     <Modal
@@ -45,19 +40,23 @@ const ModalCancelDownload = ({ model, isFromList }: Props) => {
             {cancelText}
           </Button>
         ) : (
-          <Button variant="soft">
+          <Button
+            className="text-[hsla(var(--primary-bg))]"
+            variant="soft"
+            theme="ghost"
+          >
             <div className="flex items-center space-x-2">
               <span className="inline-block">Cancel</span>
               <Progress
                 className="w-[80px]"
                 value={
-                  formatDownloadPercentage(downloadState?.percent, {
+                  formatDownloadPercentage(downloadState?.percent ?? 0, {
                     hidePercentage: true,
                   }) as number
                 }
               />
               <span className="tabular-nums">
-                {formatDownloadPercentage(downloadState.percent)}
+                {formatDownloadPercentage(downloadState?.percent ?? 0)}
               </span>
             </div>
           </Button>

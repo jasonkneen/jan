@@ -8,7 +8,8 @@ jest.mock('../../helper', () => ({
 
 jest.mock('../../helper/path', () => ({
   validatePath: jest.fn().mockReturnValue('path/to/folder'),
-  normalizeFilePath: () => process.platform === 'win32' ? 'C:\\Users\path\\to\\file.gguf' : '/Users/path/to/file.gguf',
+  normalizeFilePath: () =>
+    process.platform === 'win32' ? 'C:\\Users\\path\\to\\file.gguf' : '/Users/path/to/file.gguf',
 }))
 
 jest.mock(
@@ -21,6 +22,11 @@ jest.mock(
 jest.mock('fs', () => ({
   createWriteStream: jest.fn(),
 }))
+
+const requestMock = jest.fn((options, callback) => {
+  callback(new Error('Test error'), null)
+})
+jest.mock('request', () => requestMock)
 
 jest.mock('request-progress', () => {
   return jest.fn().mockImplementation(() => {
@@ -52,18 +58,6 @@ jest.mock('request-progress', () => {
 describe('Downloader', () => {
   beforeEach(() => {
     jest.resetAllMocks()
-  })
-  it('should handle getFileSize errors correctly', async () => {
-    const observer = jest.fn()
-    const url = 'http://example.com/file'
-
-    const downloader = new Downloader(observer)
-    const requestMock = jest.fn((options, callback) => {
-      callback(new Error('Test error'), null)
-    })
-    jest.mock('request', () => requestMock)
-
-    await expect(downloader.getFileSize(observer, url)).rejects.toThrow('Test error')
   })
 
   it('should pause download correctly', () => {

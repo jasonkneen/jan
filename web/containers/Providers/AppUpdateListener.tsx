@@ -1,16 +1,20 @@
-import { Fragment, PropsWithChildren, useEffect } from 'react'
+import { Fragment, useEffect } from 'react'
 
 import { AppUpdateInfo } from '@janhq/core'
 import { useSetAtom } from 'jotai'
 
 import {
   appDownloadProgressAtom,
+  appUpdateAvailableAtom,
   updateVersionErrorAtom,
+  appUpdateNotAvailableAtom,
 } from '@/helpers/atoms/App.atom'
 
-const AppUpdateListener = ({ children }: PropsWithChildren) => {
+const AppUpdateListener = () => {
   const setProgress = useSetAtom(appDownloadProgressAtom)
   const setUpdateVersionError = useSetAtom(updateVersionErrorAtom)
+  const setAppUpdateAvailable = useSetAtom(appUpdateAvailableAtom)
+  const setAppUpdateNotvailable = useSetAtom(appUpdateNotAvailableAtom)
 
   useEffect(() => {
     if (window && window.electronAPI) {
@@ -36,10 +40,19 @@ const AppUpdateListener = ({ children }: PropsWithChildren) => {
       window.electronAPI.onAppUpdateDownloadSuccess(() => {
         setProgress(-1)
       })
-    }
-  }, [setProgress, setUpdateVersionError])
 
-  return <Fragment>{children}</Fragment>
+      window.electronAPI.onAppUpdateAvailable(() => {
+        setAppUpdateAvailable(true)
+      })
+
+      window.electronAPI.onAppUpdateNotAvailable(() => {
+        setAppUpdateAvailable(false)
+        setAppUpdateNotvailable(true)
+      })
+    }
+  }, [setProgress, setUpdateVersionError, setAppUpdateAvailable])
+
+  return <Fragment></Fragment>
 }
 
 export default AppUpdateListener
