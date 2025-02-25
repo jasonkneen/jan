@@ -1,4 +1,4 @@
-import React, { Fragment, useState } from 'react'
+import React, { Fragment, useMemo, useState } from 'react'
 
 import Image from 'next/image'
 
@@ -24,66 +24,63 @@ import useDownloadModel from '@/hooks/useDownloadModel'
 
 import { modelDownloadStateAtom } from '@/hooks/useDownloadState'
 
-import { formatDownloadPercentage, toGibibytes } from '@/utils/converter'
+import { useGetEngines } from '@/hooks/useEngineManagement'
+
+import { useGetModelSources } from '@/hooks/useModelSource'
+
+import { formatDownloadPercentage, toGigabytes } from '@/utils/converter'
+import { manualRecommendationModel } from '@/utils/model'
 import {
   getLogoEngine,
   getTitleByEngine,
-  localEngines,
+  isLocalEngine,
 } from '@/utils/modelEngine'
+
+import { extractModelName } from '@/utils/modelSource'
 
 import { mainViewStateAtom } from '@/helpers/atoms/App.atom'
 import {
   configuredModelsAtom,
   getDownloadingModelAtom,
 } from '@/helpers/atoms/Model.atom'
-import { selectedSettingAtom } from '@/helpers/atoms/Setting.atom'
+import {
+  selectedSettingAtom,
+  showScrollBarAtom,
+} from '@/helpers/atoms/Setting.atom'
 
 type Props = {
-  extensionHasSettings: {
-    name?: string
-    setting: string
-    apiKey: string
-    provider: string
-  }[]
+  isShowStarterScreen?: boolean
 }
 
-const OnDeviceStarterScreen = ({ extensionHasSettings }: Props) => {
+const OnDeviceStarterScreen = ({ isShowStarterScreen }: Props) => {
   const [searchValue, setSearchValue] = useState('')
   const [isOpen, setIsOpen] = useState(Boolean(searchValue.length))
   const downloadingModels = useAtomValue(getDownloadingModelAtom)
   const { downloadModel } = useDownloadModel()
   const downloadStates = useAtomValue(modelDownloadStateAtom)
   const setSelectedSetting = useSetAtom(selectedSettingAtom)
+  const { engines } = useGetEngines()
+  const showScrollBar = useAtomValue(showScrollBarAtom)
 
   const configuredModels = useAtomValue(configuredModelsAtom)
+  const { sources } = useGetModelSources()
   const setMainViewState = useSetAtom(mainViewStateAtom)
 
-  const recommendModel = ['gemma-2-2b-it', 'llama3.1-8b-instruct']
-
-  const featuredModel = configuredModels.filter((x) => {
-    const manualRecommendModel = configuredModels.filter((x) =>
-      recommendModel.includes(x.id)
-    )
-
-    if (manualRecommendModel.length === 2) {
-      return x.id === recommendModel[0] || x.id === recommendModel[1]
-    } else {
-      return (
-        x.metadata.tags.includes('Featured') && x.metadata.size < 5000000000
-      )
-    }
-  })
-
-  const remoteModel = configuredModels.filter(
-    (x) => !localEngines.includes(x.engine)
+  const featuredModels = sources?.filter((x) =>
+    manualRecommendationModel.includes(x.id)
   )
 
-  const filteredModels = configuredModels.filter((model) => {
-    return (
-      localEngines.includes(model.engine) &&
-      model.name.toLowerCase().includes(searchValue.toLowerCase())
-    )
-  })
+  const filteredModels = useMemo(
+    () =>
+      sources?.filter((x) =>
+        x.id.toLowerCase().includes(searchValue.toLowerCase())
+      ),
+    [sources, searchValue]
+  )
+
+  const remoteModel = configuredModels.filter(
+    (x) => !isLocalEngine(engines, x.engine)
+  )
 
   const remoteModelEngine = remoteModel.map((x) => x.engine)
 
@@ -101,15 +98,22 @@ const OnDeviceStarterScreen = ({ extensionHasSettings }: Props) => {
     return rows
   }
 
-  const rows = getRows(groupByEngine, itemsPerRow)
+  const rows = getRows(
+    groupByEngine.sort((a, b) => a.localeCompare(b)),
+    itemsPerRow
+  )
 
   const refDropdown = useClickOutside(() => setIsOpen(false))
 
   const [visibleRows, setVisibleRows] = useState(1)
 
   return (
-    <CenterPanelContainer>
-      <ScrollArea className="flex h-full w-full items-center">
+    <CenterPanelContainer isShowStarterScreen={isShowStarterScreen}>
+      <ScrollArea
+        type={showScrollBar ? 'always' : 'scroll'}
+        className="flex h-full w-full items-center"
+        data-testid="onboard-screen"
+      >
         <div className="relative mt-4 flex h-full w-full flex-col items-center justify-center">
           <div className="mx-auto flex h-full w-3/4 flex-col items-center justify-center py-16 text-center">
             <LogoMark
@@ -136,16 +140,16 @@ const OnDeviceStarterScreen = ({ extensionHasSettings }: Props) => {
                       !isOpen ? 'invisible' : 'visible'
                     )}
                   >
-                    {!filteredModels.length ? (
+                    {!featuredModels?.length ? (
                       <div className="p-3 text-center">
                         <p className="line-clamp-1 text-[hsla(var(--text-secondary))]">
                           No Result Found
                         </p>
                       </div>
                     ) : (
-                      filteredModels.map((model) => {
+                      filteredModels?.map((model) => {
                         const isDownloading = downloadingModels.some(
-                          (md) => md.id === model.id
+                          (md) => md === (model.models[0]?.id ?? model.id)
                         )
                         return (
                           <div
@@ -154,26 +158,35 @@ const OnDeviceStarterScreen = ({ extensionHasSettings }: Props) => {
                           >
                             <div className="flex items-center gap-2">
                               <p
-                                className={twMerge('line-clamp-1')}
-                                title={model.name}
+                                className={'line-clamp-1 capitalize'}
+                                title={extractModelName(model.id)}
                               >
-                                {model.name}
+                                {extractModelName(model.id)}
                               </p>
-                              <ModelLabel metadata={model.metadata} compact />
+                              <ModelLabel
+                                size={model.models[0]?.size}
+                                compact
+                              />
                             </div>
                             <div className="flex items-center gap-2 text-[hsla(var(--text-tertiary))]">
                               <span className="font-medium">
-                                {toGibibytes(model.metadata.size)}
+                                {toGigabytes(model.models[0]?.size)}
                               </span>
                               {!isDownloading ? (
                                 <DownloadCloudIcon
                                   size={18}
                                   className="cursor-pointer text-[hsla(var(--app-link))]"
-                                  onClick={() => downloadModel(model)}
+                                  onClick={() =>
+                                    downloadModel(
+                                      model.models[0]?.id ?? model.id
+                                    )
+                                  }
                                 />
                               ) : (
                                 Object.values(downloadStates)
-                                  .filter((x) => x.modelId === model.id)
+                                  .filter(
+                                    (x) => x.modelId === model.models[0]?.id
+                                  )
                                   .map((item) => (
                                     <ProgressCircle
                                       key={item.modelId}
@@ -210,29 +223,30 @@ const OnDeviceStarterScreen = ({ extensionHasSettings }: Props) => {
                   </p>
                 </div>
 
-                {featuredModel.slice(0, 2).map((featModel) => {
+                {featuredModels?.map((featModel) => {
                   const isDownloading = downloadingModels.some(
-                    (md) => md.id === featModel.id
+                    (md) => md === (featModel.models[0]?.id ?? featModel.id)
                   )
                   return (
                     <div
                       key={featModel.id}
-                      className="my-2 flex items-center justify-between gap-2 border-b border-[hsla(var(--app-border))] pb-4 pt-1 last:border-none"
+                      className="my-2 flex items-start justify-between gap-2 border-b border-[hsla(var(--app-border))] pb-4 pt-1 last:border-none"
                     >
                       <div className="w-full text-left">
-                        <h6 className="font-medium">{featModel.name}</h6>
-                        <p className="mt-2 font-medium text-[hsla(var(--text-secondary))]">
-                          {featModel.metadata.author}
-                        </p>
+                        <h6 className="mt-1.5 font-medium capitalize">
+                          {extractModelName(featModel.id)}
+                        </h6>
                       </div>
 
                       {isDownloading ? (
-                        <div className="flex w-full items-center gap-2">
+                        <div className="flex w-full flex-col items-end gap-2">
                           {Object.values(downloadStates)
-                            .filter((x) => x.modelId === featModel.id)
+                            .filter(
+                              (x) => x.modelId === featModel.models[0]?.id
+                            )
                             .map((item, i) => (
                               <div
-                                className="flex w-full items-center gap-2"
+                                className="mt-1.5 flex w-full items-center gap-2"
                                 key={i}
                               >
                                 <Progress
@@ -252,18 +266,23 @@ const OnDeviceStarterScreen = ({ extensionHasSettings }: Props) => {
                                 </div>
                               </div>
                             ))}
+                          <span className="text-[hsla(var(--text-secondary))]">
+                            {toGigabytes(featModel.models[0]?.size)}
+                          </span>
                         </div>
                       ) : (
                         <div className="flex flex-col items-end justify-end gap-2">
                           <Button
                             theme="ghost"
                             className="!bg-[hsla(var(--secondary-bg))]"
-                            onClick={() => downloadModel(featModel)}
+                            onClick={() =>
+                              downloadModel(featModel.models[0]?.id)
+                            }
                           >
                             Download
                           </Button>
                           <span className="text-[hsla(var(--text-secondary))]">
-                            {toGibibytes(featModel.metadata.size)}
+                            {toGigabytes(featModel.models[0]?.size)}
                           </span>
                         </div>
                       )}
@@ -284,42 +303,46 @@ const OnDeviceStarterScreen = ({ extensionHasSettings }: Props) => {
                         key={rowIndex}
                         className="my-2 flex items-center gap-4 md:gap-10"
                       >
-                        {row.map((remoteEngine) => {
-                          const engineLogo = getLogoEngine(
-                            remoteEngine as InferenceEngine
+                        {row
+                          .filter(
+                            (e) =>
+                              engines?.[e as InferenceEngine]?.[0]?.type ===
+                              'remote'
                           )
+                          .map((remoteEngine) => {
+                            const engineLogo = getLogoEngine(
+                              remoteEngine as InferenceEngine
+                            )
 
-                          return (
-                            <div
-                              className="flex cursor-pointer flex-col items-center justify-center gap-4"
-                              key={remoteEngine}
-                              onClick={() => {
-                                setMainViewState(MainViewState.Settings)
-                                setSelectedSetting(
-                                  extensionHasSettings.find((x) =>
-                                    x.name?.toLowerCase().includes(remoteEngine)
-                                  )?.setting as string
-                                )
-                              }}
-                            >
-                              {engineLogo && (
-                                <Image
-                                  width={48}
-                                  height={48}
-                                  src={engineLogo}
-                                  alt="Engine logo"
-                                  className="h-10 w-10 flex-shrink-0"
-                                />
-                              )}
-
-                              <p className="font-medium">
-                                {getTitleByEngine(
-                                  remoteEngine as InferenceEngine
+                            return (
+                              <div
+                                className="flex cursor-pointer flex-col items-center justify-center gap-4"
+                                key={remoteEngine}
+                                onClick={() => {
+                                  setMainViewState(MainViewState.Settings)
+                                  setSelectedSetting(
+                                    remoteEngine as InferenceEngine
+                                  )
+                                }}
+                              >
+                                {engineLogo && (
+                                  <Image
+                                    width={48}
+                                    height={48}
+                                    src={engineLogo}
+                                    alt="Engine logo"
+                                    className="h-10 w-10 flex-shrink-0"
+                                  />
                                 )}
-                              </p>
-                            </div>
-                          )
-                        })}
+
+                                <p className="font-medium">
+                                  {getTitleByEngine(
+                                    remoteEngine as InferenceEngine
+                                  )}
+                                </p>
+                              </div>
+                            )
+                          })}
                       </div>
                     )
                   })}

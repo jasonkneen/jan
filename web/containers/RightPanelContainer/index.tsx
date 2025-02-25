@@ -7,27 +7,31 @@ import {
 } from 'react'
 
 import { ScrollArea, useClickOutside, useMediaQuery } from '@janhq/joi'
-import { useAtom, useAtomValue } from 'jotai'
+import { atom, useAtom, useAtomValue } from 'jotai'
 
 import { twMerge } from 'tailwind-merge'
 
 import { showRightPanelAtom } from '@/helpers/atoms/App.atom'
-import { reduceTransparentAtom } from '@/helpers/atoms/Setting.atom'
+import {
+  reduceTransparentAtom,
+  showScrollBarAtom,
+} from '@/helpers/atoms/Setting.atom'
 
 type Props = PropsWithChildren
 
-const DEFAULT_RIGTH_PANEL_WIDTH = 280
-const RIGHT_PANEL_WIDTH = 'rightPanelWidth'
+const DEFAULT_RIGHT_PANEL_WIDTH = 280
+export const RIGHT_PANEL_WIDTH = 'rightPanelWidth'
+
+export const rightPanelWidthAtom = atom(DEFAULT_RIGHT_PANEL_WIDTH)
 
 const RightPanelContainer = ({ children }: Props) => {
   const [isResizing, setIsResizing] = useState(false)
-  const [threadRightPanelWidth, setRightPanelWidth] = useState(
-    Number(localStorage.getItem(RIGHT_PANEL_WIDTH)) || DEFAULT_RIGTH_PANEL_WIDTH
-  )
+  const [rightPanelWidth, setRightPanelWidth] = useAtom(rightPanelWidthAtom)
   const [rightPanelRef, setRightPanelRef] = useState<HTMLDivElement | null>(
     null
   )
   const reduceTransparent = useAtomValue(reduceTransparentAtom)
+  const showScrollBar = useAtomValue(showScrollBarAtom)
 
   const [showRightPanel, setShowRightPanel] = useAtom(showRightPanelAtom)
   const matches = useMediaQuery('(max-width: 880px)')
@@ -40,10 +44,12 @@ const RightPanelContainer = ({ children }: Props) => {
 
   const startResizing = useCallback(() => {
     setIsResizing(true)
+    document.body.classList.add('select-none')
   }, [])
 
   const stopResizing = useCallback(() => {
     setIsResizing(false)
+    document.body.classList.remove('select-none')
   }, [])
 
   const resize = useCallback(
@@ -55,11 +61,11 @@ const RightPanelContainer = ({ children }: Props) => {
               mouseMoveEvent.clientX <
             200
           ) {
-            setRightPanelWidth(DEFAULT_RIGTH_PANEL_WIDTH)
+            setRightPanelWidth(DEFAULT_RIGHT_PANEL_WIDTH)
             setIsResizing(false)
             localStorage.setItem(
               RIGHT_PANEL_WIDTH,
-              String(DEFAULT_RIGTH_PANEL_WIDTH)
+              String(DEFAULT_RIGHT_PANEL_WIDTH)
             )
             setShowRightPanel(false)
           } else {
@@ -72,13 +78,13 @@ const RightPanelContainer = ({ children }: Props) => {
         }
       }
     },
-    [isResizing, rightPanelRef, setShowRightPanel]
+    [isResizing, rightPanelRef, setRightPanelWidth, setShowRightPanel]
   )
 
   useEffect(() => {
     if (localStorage.getItem(RIGHT_PANEL_WIDTH) === null) {
-      setRightPanelWidth(DEFAULT_RIGTH_PANEL_WIDTH)
-      localStorage.setItem(RIGHT_PANEL_WIDTH, String(DEFAULT_RIGTH_PANEL_WIDTH))
+      setRightPanelWidth(DEFAULT_RIGHT_PANEL_WIDTH)
+      localStorage.setItem(RIGHT_PANEL_WIDTH, String(DEFAULT_RIGHT_PANEL_WIDTH))
     }
     window.addEventListener('mousemove', resize)
     window.addEventListener('mouseup', stopResizing)
@@ -86,7 +92,7 @@ const RightPanelContainer = ({ children }: Props) => {
       window.removeEventListener('mousemove', resize)
       window.removeEventListener('mouseup', stopResizing)
     }
-  }, [resize, stopResizing])
+  }, [resize, setRightPanelWidth, stopResizing])
 
   return (
     <div
@@ -100,16 +106,19 @@ const RightPanelContainer = ({ children }: Props) => {
         reduceTransparent &&
           'border-l border-[hsla(var(--app-border))] bg-[hsla(var(--right-panel-bg))]'
       )}
-      style={{ width: showRightPanel ? threadRightPanelWidth : 0 }}
+      style={{ width: showRightPanel ? rightPanelWidth : 0 }}
       onMouseDown={(e) => isResizing && e.preventDefault()}
     >
-      <ScrollArea className="h-full w-full">
+      <ScrollArea
+        type={showScrollBar ? 'always' : 'scroll'}
+        className="h-full w-full"
+      >
         {children}
         {showRightPanel && !matches && (
           <Fragment>
             <div
               className={twMerge(
-                'group/resize absolute left-0 top-0 z-[9999] h-full w-1 flex-shrink-0 flex-grow-0 resize-x blur-sm hover:cursor-col-resize hover:bg-[hsla(var(--resize-bg))]',
+                'group/resize absolute left-0 top-0 z-40 h-full w-1 flex-shrink-0 flex-grow-0 resize-x blur-sm hover:cursor-col-resize hover:bg-[hsla(var(--resize-bg))]',
                 isResizing && 'cursor-col-resize bg-[hsla(var(--resize-bg))]',
                 !reduceTransparent && 'shadow-sm'
               )}

@@ -64,7 +64,6 @@ describe('Advanced', () => {
     await waitFor(() => {
       expect(screen.getByText('Experimental Mode')).toBeInTheDocument()
       expect(screen.getByText('HTTPS Proxy')).toBeInTheDocument()
-      expect(screen.getByText('Ignore SSL certificates')).toBeInTheDocument()
       expect(screen.getByText('Jan Data Folder')).toBeInTheDocument()
       expect(screen.getByText('Reset to Factory Settings')).toBeInTheDocument()
     })
@@ -91,20 +90,6 @@ describe('Advanced', () => {
     expect(experimentalToggle).not.toBeChecked()
   })
 
-  it('clears logs', async () => {
-    const jestMock = jest.fn()
-    jest.spyOn(toast, 'toaster').mockImplementation(jestMock)
-
-    render(<Advanced />)
-    let clearLogsButton
-    await waitFor(() => {
-      clearLogsButton = screen.getByTestId(/clear-logs/i)
-      fireEvent.click(clearLogsButton)
-    })
-    expect(clearLogsButton).toBeInTheDocument()
-    expect(jestMock).toHaveBeenCalled()
-  })
-
   it('toggles proxy enabled', async () => {
     render(<Advanced />)
     let proxyToggle
@@ -116,28 +101,6 @@ describe('Advanced', () => {
     expect(proxyToggle).toBeChecked()
   })
 
-  it('updates proxy settings', async () => {
-    render(<Advanced />)
-    let proxyInput
-    await waitFor(() => {
-      const proxyToggle = screen.getByTestId(/proxy-switch/i)
-      fireEvent.click(proxyToggle)
-      proxyInput = screen.getByTestId(/proxy-input/i)
-      fireEvent.change(proxyInput, { target: { value: 'http://proxy.com' } })
-    })
-    expect(proxyInput).toHaveValue('http://proxy.com')
-  })
-
-  it('toggles ignore SSL certificates', async () => {
-    render(<Advanced />)
-    let ignoreSslToggle
-    await waitFor(() => {
-      expect(screen.getByText('Ignore SSL certificates')).toBeInTheDocument()
-      ignoreSslToggle = screen.getByTestId(/ignore-ssl-switch/i)
-      fireEvent.click(ignoreSslToggle)
-    })
-    expect(ignoreSslToggle).toBeChecked()
-  })
 
   it('renders DataFolder component', async () => {
     render(<Advanced />)
@@ -152,6 +115,15 @@ describe('Advanced', () => {
     await waitFor(() => {
       expect(screen.getByText('Reset to Factory Settings')).toBeInTheDocument()
       expect(screen.getByTestId(/reset-button/i)).toBeInTheDocument()
+    })
+  })
+
+  it('renders DeleteAllThreads component', async () => {
+    render(<Advanced />)
+    await waitFor(() => {
+      const elements = screen.getAllByText('Delete All Threads')
+      expect(elements.length).toBeGreaterThan(0)
+      expect(screen.getByTestId('delete-all-threads-button')).toBeInTheDocument()
     })
   })
 })

@@ -27,12 +27,21 @@ export const getConfigurationsData = (
                 componentSetting.controllerProps.max ||
                 4096
               break
+            case 'temperature':
+              componentSetting.controllerProps.max =
+                selectedModel?.parameters?.max_temperature || 2
+              break
             case 'ctx_len':
               componentSetting.controllerProps.max =
                 selectedModel?.settings.ctx_len ||
                 componentSetting.controllerProps.max ||
                 2048
               break
+            case 'ngl':
+              componentSetting.controllerProps.max =
+                selectedModel?.settings.ngl ||
+                componentSetting.controllerProps.max ||
+                100
           }
         }
       }
@@ -60,11 +69,14 @@ export const getConfigurationsData = (
         componentSetting.controllerProps.placeholder = placeholder
     } else if ('checkbox' === componentSetting.controllerType) {
       const checked = keySetting as boolean
-
       if ('value' in componentSetting.controllerProps)
         componentSetting.controllerProps.value = checked
+    } else if ('tag' === componentSetting.controllerType) {
+      if ('value' in componentSetting.controllerProps)
+        componentSetting.controllerProps.value = keySetting as string
     }
     componentData.push(componentSetting)
   })
+
   return componentData
 }

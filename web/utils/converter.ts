@@ -1,4 +1,4 @@
-export const toGibibytes = (
+export const toGigabytes = (
   input: number,
   options?: { hideUnit?: boolean }
 ) => {
@@ -18,13 +18,13 @@ export const formatDownloadPercentage = (
   input: number,
   options?: { hidePercentage?: boolean }
 ) => {
-  if (options?.hidePercentage) return input * 100
-  return (input * 100).toFixed(2) + '%'
+  if (options?.hidePercentage) return input <= 1 ? input * 100 : input
+  return (input <= 1 ? input * 100 : (input ?? 0)).toFixed(2) + '%'
 }
 
 export const formatDownloadSpeed = (input: number | undefined) => {
   if (!input) return '0B/s'
-  return toGibibytes(input) + '/s'
+  return toGigabytes(input) + '/s'
 }
 
 export const formatTwoDigits = (input: number) => {
