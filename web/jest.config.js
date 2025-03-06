@@ -13,14 +13,22 @@ const config = {
   moduleNameMapper: {
     // ...
     '^@/(.*)$': '<rootDir>/$1',
+    'react-markdown': '<rootDir>/mock/empty-mock.tsx',
+    'rehype-highlight': '<rootDir>/mock/empty-mock.tsx',
+    'rehype-katex': '<rootDir>/mock/empty-mock.tsx',
+    'rehype-raw': '<rootDir>/mock/empty-mock.tsx',
+    'remark-math': '<rootDir>/mock/empty-mock.tsx',
+    '^react$': '<rootDir>/node_modules/react',
+    '^react/jsx-runtime$': '<rootDir>/node_modules/react/jsx-runtime',
+    '^react-dom$': '<rootDir>/node_modules/react-dom',
   },
   // Add more setup options before each test is run
   // setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   runner: './testRunner.js',
   collectCoverageFrom: ['./**/*.{ts,tsx}'],
   transform: {
-    "^.+\\.tsx?$": [
-      "ts-jest",
+    '^.+\\.tsx?$': [
+      'ts-jest',
       {
         diagnostics: false,
       },
@@ -32,5 +40,5 @@ const config = {
 // module.exports = createJestConfig(config)
 module.exports = async () => ({
   ...(await createJestConfig(config)()),
-  transformIgnorePatterns: ['/node_modules/(?!(layerr)/)'],
+  transformIgnorePatterns: ['/node_modules/(?!((.*))/)'],
 })

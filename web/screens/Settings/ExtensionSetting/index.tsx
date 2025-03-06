@@ -1,50 +1,42 @@
-import React, { Fragment, useEffect, useState } from 'react'
+import React, { Fragment, useEffect, useMemo, useState } from 'react'
 
-import {
-  BaseExtension,
-  InstallationState,
-  SettingComponentProps,
-} from '@janhq/core'
+import { SettingComponentProps } from '@janhq/core'
 
 import { useAtomValue } from 'jotai'
 
-import ExtensionItem from '../CoreExtensions/ExtensionItem'
 import SettingDetailItem from '../SettingDetail/SettingDetailItem'
 
 import { extensionManager } from '@/extension'
 import { selectedSettingAtom } from '@/helpers/atoms/Setting.atom'
 
-const ExtensionSetting = () => {
+const ExtensionSetting = ({ extensionName }: { extensionName?: string }) => {
   const selectedExtensionName = useAtomValue(selectedSettingAtom)
   const [settings, setSettings] = useState<SettingComponentProps[]>([])
-  const [installationState, setInstallationState] =
-    useState<InstallationState>('NotRequired')
-  const [baseExtension, setBaseExtension] = useState<BaseExtension | undefined>(
-    undefined
+
+  const currentExtensionName = useMemo(
+    () => extensionName ?? selectedExtensionName,
+    [selectedExtensionName, extensionName]
   )
 
   useEffect(() => {
     const getExtensionSettings = async () => {
-      if (!selectedExtensionName) return
+      if (!currentExtensionName) return
       const allSettings: SettingComponentProps[] = []
-      const baseExtension = extensionManager.getByName(selectedExtensionName)
+      const baseExtension = extensionManager.getByName(currentExtensionName)
       if (!baseExtension) return
 
-      setBaseExtension(baseExtension)
       if (typeof baseExtension.getSettings === 'function') {
         const setting = await baseExtension.getSettings()
         if (setting) allSettings.push(...setting)
       }
       setSettings(allSettings)
-
-      setInstallationState(await baseExtension.installationState())
     }
     getExtensionSettings()
-  }, [selectedExtensionName])
+  }, [currentExtensionName])
 
   const onValueChanged = async (
     key: string,
-    value: string | number | boolean
+    value: string | number | boolean | string[]
   ) => {
     // find the key in settings state, update it and set the state back
     const newSettings = settings.map((setting) => {
@@ -69,9 +61,6 @@ const ExtensionSetting = () => {
           componentProps={settings}
           onValueUpdated={onValueChanged}
         />
-      )}
-      {baseExtension && installationState !== 'NotRequired' && (
-        <ExtensionItem item={baseExtension} />
       )}
     </Fragment>
   )

@@ -11,12 +11,12 @@ import { useSetAtom } from 'jotai'
 
 import { extensionManager } from '@/extension/ExtensionManager'
 import {
-  ModelParams,
   threadDataReadyAtom,
   threadModelParamsAtom,
   threadStatesAtom,
   threadsAtom,
 } from '@/helpers/atoms/Thread.atom'
+import { ModelParams } from '@/types/model'
 
 const useThreads = () => {
   const setThreadStates = useSetAtom(threadStatesAtom)
@@ -26,7 +26,12 @@ const useThreads = () => {
 
   useEffect(() => {
     const getThreads = async () => {
-      const localThreads = await getLocalThreads()
+      const localThreads = (await getLocalThreads()).sort((a, b) => {
+        return ((a.metadata?.updated_at as number) ?? 0) >
+          ((b.metadata?.updated_at as number) ?? 0)
+          ? -1
+          : 1
+      })
       const localThreadStates: Record<string, ThreadState> = {}
       const threadModelParams: Record<string, ModelParams> = {}
 
@@ -68,6 +73,6 @@ const useThreads = () => {
 const getLocalThreads = async (): Promise<Thread[]> =>
   (await extensionManager
     .get<ConversationalExtension>(ExtensionTypeEnum.Conversational)
-    ?.getThreads()) ?? []
+    ?.listThreads()) ?? []
 
 export default useThreads

@@ -1,6 +1,8 @@
-import { SettingComponentProps } from '../types'
+import { Model, ModelEvent, SettingComponentProps } from '../types'
 import { getJanDataFolderPath, joinPath } from './core'
+import { events } from './events'
 import { fs } from './fs'
+import { ModelManager } from './models'
 
 export enum ExtensionTypeEnum {
   Assistant = 'assistant',
@@ -9,6 +11,8 @@ export enum ExtensionTypeEnum {
   Model = 'model',
   SystemMonitoring = 'systemMonitoring',
   HuggingFace = 'huggingFace',
+  Engine = 'engine',
+  Hardware = 'hardware',
 }
 
 export interface ExtensionType {
@@ -19,17 +23,6 @@ export interface Compatibility {
   platform: string[]
   version: string
 }
-
-const ALL_INSTALLATION_STATE = [
-  'NotRequired', // not required.
-  'Installed', // require and installed. Good to go.
-  'NotInstalled', // require to be installed.
-  'Corrupted', // require but corrupted. Need to redownload.
-  'NotCompatible', // require but not compatible.
-] as const
-
-export type InstallationStateTuple = typeof ALL_INSTALLATION_STATE
-export type InstallationState = InstallationStateTuple[number]
 
 /**
  * Represents a base extension.
@@ -103,6 +96,21 @@ export abstract class BaseExtension implements ExtensionType {
     return undefined
   }
 
+  /**
+   * Registers models - it persists in-memory shared ModelManager instance's data map.
+   * @param models
+   */
+  async registerModels(models: Model[]): Promise<void> {
+    for (const model of models) {
+      ModelManager.instance().register(model)
+    }
+  }
+
+  /**
+   * Register settings for the extension.
+   * @param settings
+   * @returns
+   */
   async registerSettings(settings: SettingComponentProps[]): Promise<void> {
     if (!this.name) {
       console.error('Extension name is not defined')
@@ -139,6 +147,12 @@ export abstract class BaseExtension implements ExtensionType {
     }
   }
 
+  /**
+   * Get the setting value for the key.
+   * @param key
+   * @param defaultValue
+   * @returns
+   */
   async getSetting<T>(key: string, defaultValue: T) {
     const keySetting = (await this.getSettings()).find((setting) => setting.key === key)
 
@@ -151,15 +165,6 @@ export abstract class BaseExtension implements ExtensionType {
   }
 
   /**
-   * Determine if the prerequisites for the extension are installed.
-   *
-   * @returns {boolean} true if the prerequisites are installed, false otherwise.
-   */
-  async installationState(): Promise<InstallationState> {
-    return 'NotRequired'
-  }
-
-  /**
    * Install the prerequisites for the extension.
    *
    * @returns {Promise<void>}
@@ -168,6 +173,10 @@ export abstract class BaseExtension implements ExtensionType {
     return
   }
 
+  /**
+   * Get the settings for the extension.
+   * @returns
+   */
   async getSettings(): Promise<SettingComponentProps[]> {
     if (!this.name) return []
 
@@ -189,12 +198,17 @@ export abstract class BaseExtension implements ExtensionType {
     }
   }
 
+  /**
+   * Update the settings for the extension.
+   * @param componentProps
+   * @returns
+   */
   async updateSettings(componentProps: Partial<SettingComponentProps>[]): Promise<void> {
     if (!this.name) return
 
     const settings = await this.getSettings()
 
-    const updatedSettings = settings.map((setting) => {
+    let updatedSettings = settings.map((setting) => {
       const updatedSetting = componentProps.find(
         (componentProp) => componentProp.key === setting.key
       )
@@ -204,12 +218,19 @@ export abstract class BaseExtension implements ExtensionType {
       return setting
     })
 
-    const settingPath = await joinPath([
+    if (!updatedSettings.length) updatedSettings = componentProps as SettingComponentProps[]
+
+    const settingFolder = await joinPath([
       await getJanDataFolderPath(),
       this.settingFolderName,
       this.name,
-      this.settingFileName,
     ])
+
+    if (!(await fs.existsSync(settingFolder))) {
+      await fs.mkdir(settingFolder)
+    }
+
+    const settingPath = await joinPath([settingFolder, this.settingFileName])
 
     await fs.writeFileSync(settingPath, JSON.stringify(updatedSettings, null, 2))
 

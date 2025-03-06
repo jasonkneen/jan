@@ -1,4 +1,4 @@
-import { DownloadRequest, FileStat, NetworkConfig, SystemInformation } from '../types'
+import { SystemInformation } from '../types'
 
 /**
  * Execute a extension module function in main process
@@ -15,35 +15,6 @@ const executeOnMain: (extension: string, method: string, ...args: any[]) => Prom
   ...args
 ) => globalThis.core?.api?.invokeExtensionFunc(extension, method, ...args)
 
-/**
- * Downloads a file from a URL and saves it to the local file system.
- *
- * @param {DownloadRequest} downloadRequest - The request to download the file.
- * @param {NetworkConfig} network - Optional object to specify proxy/whether to ignore SSL certificates.
- *
- * @returns {Promise<any>} A promise that resolves when the file is downloaded.
- */
-const downloadFile: (downloadRequest: DownloadRequest, network?: NetworkConfig) => Promise<any> = (
-  downloadRequest,
-  network
-) => globalThis.core?.api?.downloadFile(downloadRequest, network)
-
-/**
- * Get unit in bytes for a remote file.
- *
- * @param url - The url of the file.
- * @returns {Promise<number>} - A promise that resolves with the file size.
- */
-const getFileSize: (url: string) => Promise<number> = (url: string) =>
-  globalThis.core.api?.getFileSize(url)
-
-/**
- * Aborts the download of a specific file.
- * @param {string} fileName - The name of the file whose download is to be aborted.
- * @returns {Promise<any>} A promise that resolves when the download has been aborted.
- */
-const abortDownload: (fileName: string) => Promise<any> = (fileName) =>
-  globalThis.core.api?.abortDownload(fileName)
 
 /**
  * Gets Jan's data folder path.
@@ -154,8 +125,6 @@ export type RegisterExtensionPoint = (
  */
 export {
   executeOnMain,
-  downloadFile,
-  abortDownload,
   getJanDataFolderPath,
   openFileExplorer,
   getResourcePath,
@@ -167,7 +136,5 @@ export {
   getUserHomePath,
   systemInformation,
   showToast,
-  getFileSize,
   dirName,
-  FileStat,
 }

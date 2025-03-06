@@ -10,33 +10,33 @@ import {
   ConversationalExtension,
   EngineManager,
   ToolManager,
-  ChatCompletionMessage,
+  ThreadAssistantInfo,
+  InferenceEngine,
 } from '@janhq/core'
+import { extractInferenceParams, extractModelLoadParams } from '@janhq/core'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 
+import { modelDropdownStateAtom } from '@/containers/ModelDropdown'
 import {
   currentPromptAtom,
   editPromptAtom,
   fileUploadAtom,
 } from '@/containers/Providers/Jotai'
 
-import { Stack } from '@/utils/Stack'
 import { compressImage, getBase64 } from '@/utils/base64'
 import { MessageRequestBuilder } from '@/utils/messageRequestBuilder'
-import {
-  extractInferenceParams,
-  extractModelLoadParams,
-} from '@/utils/modelParam'
 
 import { ThreadMessageBuilder } from '@/utils/threadMessageBuilder'
 
-import { loadModelErrorAtom, useActiveModel } from './useActiveModel'
+import { useActiveModel } from './useActiveModel'
 
 import { extensionManager } from '@/extension/ExtensionManager'
+import { activeAssistantAtom } from '@/helpers/atoms/Assistant.atom'
 import {
   addNewMessageAtom,
   deleteMessageAtom,
   getCurrentChatMessagesAtom,
+  tokenSpeedAtom,
 } from '@/helpers/atoms/ChatMessage.atom'
 import { selectedModelAtom } from '@/helpers/atoms/Model.atom'
 import {
@@ -48,11 +48,11 @@ import {
   updateThreadWaitingForResponseAtom,
 } from '@/helpers/atoms/Thread.atom'
 
-export const queuedMessageAtom = atom(false)
 export const reloadModelAtom = atom(false)
 
 export default function useSendChatMessage() {
   const activeThread = useAtomValue(activeThreadAtom)
+  const activeAssistant = useAtomValue(activeAssistantAtom)
   const addNewMessage = useSetAtom(addNewMessageAtom)
   const updateThread = useSetAtom(updateThreadAtom)
   const updateThreadWaiting = useSetAtom(updateThreadWaitingForResponseAtom)
@@ -63,10 +63,8 @@ export default function useSendChatMessage() {
   const currentMessages = useAtomValue(getCurrentChatMessagesAtom)
   const selectedModel = useAtomValue(selectedModelAtom)
   const { activeModel, startModel } = useActiveModel()
-  const loadModelFailed = useAtomValue(loadModelErrorAtom)
 
   const modelRef = useRef<Model | undefined>()
-  const loadModelFailedRef = useRef<string | undefined>()
   const activeModelParams = useAtomValue(getActiveThreadModelParamsAtom)
   const engineParamsUpdate = useAtomValue(engineParamsUpdateAtom)
 
@@ -75,17 +73,15 @@ export default function useSendChatMessage() {
   const [fileUpload, setFileUpload] = useAtom(fileUploadAtom)
   const setIsGeneratingResponse = useSetAtom(isGeneratingResponseAtom)
   const activeThreadRef = useRef<Thread | undefined>()
-  const setQueuedMessage = useSetAtom(queuedMessageAtom)
+  const activeAssistantRef = useRef<ThreadAssistantInfo | undefined>()
+  const setTokenSpeed = useSetAtom(tokenSpeedAtom)
+  const setModelDropdownState = useSetAtom(modelDropdownStateAtom)
 
   const selectedModelRef = useRef<Model | undefined>()
 
   useEffect(() => {
     modelRef.current = activeModel
   }, [activeModel])
-
-  useEffect(() => {
-    loadModelFailedRef.current = loadModelFailed
-  }, [loadModelFailed])
 
   useEffect(() => {
     activeThreadRef.current = activeThread
@@ -95,102 +91,47 @@ export default function useSendChatMessage() {
     selectedModelRef.current = selectedModel
   }, [selectedModel])
 
-  const normalizeMessages = (
-    messages: ChatCompletionMessage[]
-  ): ChatCompletionMessage[] => {
-    const stack = new Stack<ChatCompletionMessage>()
-    for (const message of messages) {
-      if (stack.isEmpty()) {
-        stack.push(message)
-        continue
-      }
-      const topMessage = stack.peek()
+  useEffect(() => {
+    activeAssistantRef.current = activeAssistant
+  }, [activeAssistant])
 
-      if (message.role === topMessage.role) {
-        // add an empty message
-        stack.push({
-          role:
-            topMessage.role === ChatCompletionRole.User
-              ? ChatCompletionRole.Assistant
-              : ChatCompletionRole.User,
-          content: '.', // some model requires not empty message
-        })
-      }
-      stack.push(message)
+  const resendChatMessage = async () => {
+    // Delete last response before regenerating
+    const newConvoData = Array.from(currentMessages)
+    let toSendMessage = newConvoData.pop()
+
+    while (toSendMessage && toSendMessage?.role !== ChatCompletionRole.User) {
+      await extensionManager
+        .get<ConversationalExtension>(ExtensionTypeEnum.Conversational)
+        ?.deleteMessage(toSendMessage.thread_id, toSendMessage.id)
+        .catch(console.error)
+      deleteMessage(toSendMessage.id ?? '')
+      toSendMessage = newConvoData.pop()
     }
 
-    return stack.reverseOutput()
+    if (toSendMessage?.content[0]?.text?.value)
+      sendChatMessage(toSendMessage.content[0].text.value, true, newConvoData)
   }
 
-  const resendChatMessage = async (currentMessage: ThreadMessage) => {
-    if (!activeThreadRef.current) {
-      console.error('No active thread')
-      return
-    }
-    updateThreadWaiting(activeThreadRef.current.id, true)
-
-    const requestBuilder = new MessageRequestBuilder(
-      MessageRequestType.Thread,
-      activeThreadRef.current.assistants[0].model ?? selectedModelRef.current,
-      activeThreadRef.current,
-      currentMessages
-    )
-      .addSystemMessage(activeThreadRef.current.assistants[0]?.instructions)
-      .removeLastAssistantMessage()
-
-    const modelId =
-      selectedModelRef.current?.id ??
-      activeThreadRef.current.assistants[0].model.id
-
-    if (modelRef.current?.id !== modelId) {
-      const error = await startModel(modelId).catch((error: Error) => error)
-      if (error) {
-        updateThreadWaiting(activeThreadRef.current.id, false)
-        return
-      }
-    }
-
-    setIsGeneratingResponse(true)
-
-    if (currentMessage.role !== ChatCompletionRole.User) {
-      // Delete last response before regenerating
-      deleteMessage(currentMessage.id ?? '')
-      if (activeThreadRef.current) {
-        await extensionManager
-          .get<ConversationalExtension>(ExtensionTypeEnum.Conversational)
-          ?.writeMessages(
-            activeThreadRef.current.id,
-            currentMessages.filter((msg) => msg.id !== currentMessage.id)
-          )
-      }
-    }
-    // Process message request with Assistants tools
-    const request = await ToolManager.instance().process(
-      requestBuilder.build(),
-      activeThreadRef.current.assistants?.flatMap(
-        (assistant) => assistant.tools ?? []
-      ) ?? []
-    )
-
-    request.messages = normalizeMessages(request.messages ?? [])
-
-    const engine =
-      requestBuilder.model?.engine ?? selectedModelRef.current?.engine ?? ''
-
-    EngineManager.instance().get(engine)?.inference(request)
-  }
-
-  // Define interface extending Array prototype
-
-  const sendChatMessage = async (message: string) => {
+  const sendChatMessage = async (
+    message: string,
+    isResend: boolean = false,
+    messages?: ThreadMessage[]
+  ) => {
     if (!message || message.trim().length === 0) return
 
-    if (!activeThreadRef.current) {
-      console.error('No active thread')
+    if (!activeThreadRef.current || !activeAssistantRef.current) {
+      console.error('No active thread or assistant')
+      return
+    }
+
+    if (selectedModelRef.current?.id === undefined) {
+      setModelDropdownState(true)
       return
     }
 
     if (engineParamsUpdate) setReloadModel(true)
+    setTokenSpeed(undefined)
 
     const runtimeParams = extractInferenceParams(activeModelParams)
     const settingParams = extractModelLoadParams(activeModelParams)
@@ -201,21 +142,19 @@ export default function useSendChatMessage() {
     setCurrentPrompt('')
     setEditPrompt('')
 
-    let base64Blob = fileUpload[0]
-      ? await getBase64(fileUpload[0].file)
-      : undefined
+    let base64Blob = fileUpload ? await getBase64(fileUpload.file) : undefined
 
-    if (base64Blob && fileUpload[0]?.type === 'image') {
+    if (base64Blob && fileUpload?.type === 'image') {
       // Compress image
       base64Blob = await compressImage(base64Blob, 512)
     }
 
     const modelRequest =
-      selectedModelRef?.current ?? activeThreadRef.current.assistants[0].model
+      selectedModelRef?.current ?? activeAssistantRef.current?.model
 
     // Fallback support for previous broken threads
-    if (activeThreadRef.current?.assistants[0]?.model?.id === '*') {
-      activeThreadRef.current.assistants[0].model = {
+    if (activeAssistantRef.current?.model?.id === '*') {
+      activeAssistantRef.current.model = {
         id: modelRequest.id,
         settings: modelRequest.settings,
         parameters: modelRequest.parameters,
@@ -234,10 +173,10 @@ export default function useSendChatMessage() {
         parameters: runtimeParams,
       },
       activeThreadRef.current,
-      currentMessages
-    ).addSystemMessage(activeThreadRef.current.assistants[0].instructions)
+      messages ?? currentMessages
+    ).addSystemMessage(activeAssistantRef.current?.instructions)
 
-    requestBuilder.pushMessage(prompt, base64Blob, fileUpload[0]?.type)
+    requestBuilder.pushMessage(prompt, base64Blob, fileUpload)
 
     // Build Thread Message to persist
     const threadMessageBuilder = new ThreadMessageBuilder(
@@ -246,38 +185,43 @@ export default function useSendChatMessage() {
 
     const newMessage = threadMessageBuilder.build()
 
-    // Push to states
-    addNewMessage(newMessage)
-
     // Update thread state
     const updatedThread: Thread = {
       ...activeThreadRef.current,
-      updated: newMessage.created,
+      updated: newMessage.created_at,
       metadata: {
-        ...(activeThreadRef.current.metadata ?? {}),
+        ...activeThreadRef.current.metadata,
         lastMessage: prompt,
       },
     }
     updateThread(updatedThread)
 
-    // Add message
-    await extensionManager
-      .get<ConversationalExtension>(ExtensionTypeEnum.Conversational)
-      ?.addNewMessage(newMessage)
+    if (
+      !isResend &&
+      (newMessage.content.length || newMessage.attachments?.length)
+    ) {
+      // Add message
+      const createdMessage = await extensionManager
+        .get<ConversationalExtension>(ExtensionTypeEnum.Conversational)
+        ?.createMessage(newMessage)
+        .catch(() => undefined)
+
+      if (!createdMessage) return
+
+      // Push to states
+      addNewMessage(createdMessage)
+    }
 
     // Start Model if not started
     const modelId =
-      selectedModelRef.current?.id ??
-      activeThreadRef.current.assistants[0].model.id
+      selectedModelRef.current?.id ?? activeAssistantRef.current?.model.id
 
     if (base64Blob) {
-      setFileUpload([])
+      setFileUpload(undefined)
     }
 
-    if (modelRef.current?.id !== modelId) {
-      setQueuedMessage(true)
+    if (modelRef.current?.id !== modelId && modelId) {
       const error = await startModel(modelId).catch((error: Error) => error)
-      setQueuedMessage(false)
       if (error) {
         updateThreadWaiting(activeThreadRef.current.id, false)
         return
@@ -288,16 +232,11 @@ export default function useSendChatMessage() {
     // Process message request with Assistants tools
     const request = await ToolManager.instance().process(
       requestBuilder.build(),
-      activeThreadRef.current.assistants?.flatMap(
-        (assistant) => assistant.tools ?? []
-      ) ?? []
+      activeAssistantRef?.current.tools ?? []
     )
-    request.messages = normalizeMessages(request.messages ?? [])
 
     // Request for inference
-    EngineManager.instance()
-      .get(requestBuilder.model?.engine ?? modelRequest.engine ?? '')
-      ?.inference(request)
+    EngineManager.instance().get(InferenceEngine.cortex)?.inference(request)
 
     // Reset states
     setReloadModel(false)

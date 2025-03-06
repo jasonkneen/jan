@@ -7,7 +7,6 @@ import { twMerge } from 'tailwind-merge'
 import DownloadingState from './DownloadingState'
 
 import ImportingModelState from './ImportingModelState'
-import InstallingExtension from './InstallingExtension'
 import SystemMonitor from './SystemMonitor'
 import UpdateApp from './UpdateApp'
 import UpdatedFailedModal from './UpdateFailedModal'
@@ -35,7 +34,7 @@ const BottomPanel = () => {
   return (
     <div
       className={twMerge(
-        'fixed bottom-0 left-0 z-50 flex h-9 w-full items-center justify-between px-3 text-xs',
+        'fixed bottom-0 left-0 z-40 flex h-9 w-full items-center justify-between px-3 text-xs',
         reduceTransparent &&
           'border-t border-[hsla(var(--app-border))] bg-[hsla(var(--bottom-panel-bg))]'
       )}
@@ -49,7 +48,6 @@ const BottomPanel = () => {
         <ImportingModelState />
         <DownloadingState />
         <UpdatedFailedModal />
-        <InstallingExtension />
       </div>
       <div className="flex items-center gap-x-1">
         <SystemMonitor />

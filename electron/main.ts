@@ -28,8 +28,10 @@ import { setupReactDevTool } from './utils/dev'
 import { trayManager } from './managers/tray'
 import { logSystemInfo } from './utils/system'
 import { registerGlobalShortcuts } from './utils/shortcut'
+import { registerLogger } from './utils/logger'
 
 const preloadPath = join(__dirname, 'preload.js')
+const preloadQuickAskPath = join(__dirname, 'preload.quickask.js')
 const rendererPath = join(__dirname, '..', 'renderer')
 const quickAskPath = join(rendererPath, 'search.html')
 const mainPath = join(rendererPath, 'index.html')
@@ -79,13 +81,14 @@ app
   })
   .then(setupCore)
   .then(createUserSpace)
+  .then(registerLogger)
   .then(migrate)
   .then(setupExtensions)
   .then(setupMenu)
   .then(handleIPCs)
-  .then(handleAppUpdates)
   .then(() => process.env.CI !== 'e2e' && createQuickAskWindow())
   .then(createMainWindow)
+  .then(handleAppUpdates)
   .then(registerGlobalShortcuts)
   .then(() => {
     if (!app.isPackaged) {
@@ -131,7 +134,7 @@ function createQuickAskWindow() {
   // Feature Toggle for Quick Ask
   if (!getAppConfigurations().quick_ask) return
   const startUrl = app.isPackaged ? `file://${quickAskPath}` : quickAskUrl
-  windowManager.createQuickAskWindow(preloadPath, startUrl)
+  windowManager.createQuickAskWindow(preloadQuickAskPath, startUrl)
 }
 
 /**

@@ -8,10 +8,11 @@ import { twMerge } from 'tailwind-merge'
 import ServerLogs from '@/containers/ServerLogs'
 
 import AppLogs from './AppLogs'
+import CortexLogs from './CortexLogs'
 import DeviceSpecs from './DeviceSpecs'
 
 export const modalTroubleShootingAtom = atom(false)
-const logOption = ['App Logs', 'Server Logs', 'Device Specs']
+const logOption = ['App Logs', 'Cortex Logs', 'Server Logs', 'Device Specs']
 
 const ModalTroubleShooting = () => {
   const [modalTroubleShooting, setModalTroubleShooting] = useAtom(
@@ -82,7 +83,7 @@ const ModalTroubleShooting = () => {
                       >
                         Discord
                       </a>
-                      &nbsp;& send it to #🆘|get-help channel for further
+                      &nbsp;& send it to #🆘|jan-help channel for further
                       support.
                     </p>
                   </li>
@@ -144,10 +145,15 @@ const ModalTroubleShooting = () => {
                 <div
                   className={twMerge('hidden', isTabActive === 1 && 'block')}
                 >
-                  <ServerLogs limit={50} withCopy />
+                  <CortexLogs />
                 </div>
                 <div
                   className={twMerge('hidden', isTabActive === 2 && 'block')}
+                >
+                  <ServerLogs limit={50} withCopy />
+                </div>
+                <div
+                  className={twMerge('hidden', isTabActive === 3 && 'block')}
                 >
                   <DeviceSpecs />
                 </div>
