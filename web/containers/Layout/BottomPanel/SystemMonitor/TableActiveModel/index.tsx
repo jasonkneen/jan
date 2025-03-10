@@ -4,16 +4,17 @@ import { useAtom } from 'jotai'
 
 import { useActiveModel } from '@/hooks/useActiveModel'
 
-import { toGibibytes } from '@/utils/converter'
+import { useGetEngines } from '@/hooks/useEngineManagement'
 
-import { localEngines } from '@/utils/modelEngine'
+import { toGigabytes } from '@/utils/converter'
+
+import { isLocalEngine } from '@/utils/modelEngine'
 
 import { serverEnabledAtom } from '@/helpers/atoms/LocalServer.atom'
 
-const Column = ['Model', 'Size', '']
-
 const TableActiveModel = () => {
   const { activeModel, stateModel, stopModel } = useActiveModel()
+  const { engines } = useGetEngines()
 
   const [serverEnabled, setServerEnabled] = useAtom(serverEnabledAtom)
 
@@ -21,37 +22,23 @@ const TableActiveModel = () => {
     <div className="w-1/2">
       <div className="overflow-hidden border-b border-[hsla(var(--app-border))]">
         <table className="w-full px-8">
-          <thead className="w-full border-b border-[hsla(var(--app-border))] bg-[hsla(var(--tertiary-bg))]">
-            <tr>
-              {Column.map((col, i) => {
-                return (
-                  <th
-                    key={i}
-                    className="px-4 py-2 text-left font-normal last:text-center"
-                  >
-                    {col}
-                  </th>
-                )
-              })}
-            </tr>
-          </thead>
-          {activeModel && localEngines.includes(activeModel.engine) ? (
+          {activeModel && isLocalEngine(engines, activeModel.engine) ? (
             <tbody>
               <tr>
                 <td
-                  className="max-w-[200px] px-4 py-2 font-bold"
+                  className="max-w-[200px] px-4 py-2 font-medium"
                   title={activeModel.name}
                 >
                   <p className="line-clamp-2">{activeModel.name}</p>
                 </td>
                 <td className="px-4 py-2">
                   <Badge theme="secondary">
-                    {activeModel.metadata.size
-                      ? toGibibytes(activeModel.metadata.size)
+                    {activeModel.metadata?.size
+                      ? toGigabytes(activeModel.metadata?.size)
                       : '-'}
                   </Badge>
                 </td>
-                <td className="px-4 py-2 text-center">
+                <td className="px-4 py-2 text-right">
                   <Tooltip
                     trigger={
                       <Button

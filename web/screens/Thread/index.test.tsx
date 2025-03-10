@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen } from '@testing-library/react'
+import { render } from '@testing-library/react'
 import ThreadScreen from './index'
 import { useStarterScreen } from '../../hooks/useStarterScreen'
 import '@testing-library/jest-dom'
@@ -11,6 +11,9 @@ global.ResizeObserver = class {
 }
 // Mock the useStarterScreen hook
 jest.mock('@/hooks/useStarterScreen')
+
+// @ts-ignore
+global.API_BASE_URL = 'http://localhost:3000'
 
 describe('ThreadScreen', () => {
   it('renders OnDeviceStarterScreen when isShowStarterScreen is true', () => {

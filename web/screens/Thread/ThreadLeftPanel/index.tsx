@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { Thread } from '@janhq/core'
+import { InferenceEngine, Thread } from '@janhq/core'
 
 import { Button } from '@janhq/joi'
-import { motion as m } from 'framer-motion'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
   GalleryHorizontalEndIcon,
@@ -21,7 +20,10 @@ import { useCreateNewThread } from '@/hooks/useCreateNewThread'
 import useRecommendedModel from '@/hooks/useRecommendedModel'
 import useSetActiveThread from '@/hooks/useSetActiveThread'
 
-import { assistantsAtom } from '@/helpers/atoms/Assistant.atom'
+import {
+  activeAssistantAtom,
+  assistantsAtom,
+} from '@/helpers/atoms/Assistant.atom'
 import { editMessageAtom } from '@/helpers/atoms/ChatMessage.atom'
 
 import {
@@ -35,6 +37,7 @@ import {
 const ThreadLeftPanel = () => {
   const threads = useAtomValue(threadsAtom)
   const activeThreadId = useAtomValue(getActiveThreadIdAtom)
+  const activeAssistant = useAtomValue(activeAssistantAtom)
   const { setActiveThread } = useSetActiveThread()
   const assistants = useAtomValue(assistantsAtom)
   const threadDataReady = useAtomValue(threadDataReadyAtom)
@@ -64,15 +67,24 @@ const ThreadLeftPanel = () => {
    * This will create a new thread if there are assistants available
    * and there are no threads available
    */
+
   useEffect(() => {
     if (
       threadDataReady &&
       assistants.length > 0 &&
       threads.length === 0 &&
-      (recommendedModel || downloadedModels[0])
+      downloadedModels.length > 0
     ) {
-      const model = recommendedModel || downloadedModels[0]
-      requestCreateNewThread(assistants[0], model)
+      const model = downloadedModels.filter(
+        (model) => model.engine === InferenceEngine.cortex_llamacpp
+      )
+      const selectedModel = model[0] || recommendedModel
+      requestCreateNewThread(
+        activeAssistant
+          ? { ...assistants[0], ...activeAssistant }
+          : assistants[0],
+        selectedModel
+      )
     } else if (threadDataReady && !activeThreadId) {
       setActiveThread(threads[0])
     }
@@ -85,6 +97,7 @@ const ThreadLeftPanel = () => {
     setActiveThread,
     recommendedModel,
     downloadedModels,
+    activeAssistant,
   ])
 
   const onContextMenu = (event: React.MouseEvent, thread: Thread) => {
@@ -118,7 +131,9 @@ const ThreadLeftPanel = () => {
             <div
               key={thread.id}
               className={twMerge(
-                `group/message relative mb-1 flex cursor-pointer flex-col transition-all hover:rounded-lg hover:bg-[hsla(var(--left-panel-menu-hover))]`
+                `group/message relative mb-1 flex cursor-pointer flex-col transition-all hover:rounded-lg hover:bg-[hsla(var(--left-panel-menu-hover))]`,
+                activeThreadId === thread.id &&
+                  'rounded-lg bg-[hsla(var(--left-panel-icon-active-bg))]'
               )}
               onClick={() => {
                 onThreadClick(thread)
@@ -133,7 +148,7 @@ const ThreadLeftPanel = () => {
                     activeThreadId && 'font-medium'
                   )}
                 >
-                  {thread.title}
+                  {thread.title ?? thread.metadata?.title}
                 </h1>
               </div>
               <div
@@ -208,12 +223,6 @@ const ThreadLeftPanel = () => {
                   </div>
                 </div>
               </div>
-              {activeThreadId === thread.id && (
-                <m.div
-                  className="absolute inset-0 left-0 h-full w-full rounded-lg bg-[hsla(var(--left-panel-icon-active-bg))]"
-                  layoutId="active-thread"
-                />
-              )}
             </div>
           ))}
         </div>

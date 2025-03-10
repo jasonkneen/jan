@@ -1,18 +1,13 @@
 import { BaseExtension, ExtensionTypeEnum } from '../extension'
-import {
-  GpuSetting,
-  HuggingFaceRepoData,
-  ImportingModel,
-  Model,
-  ModelFile,
-  ModelInterface,
-  OptionType,
-} from '../../types'
+import { Model, ModelInterface, ModelSource, OptionType } from '../../types'
 
 /**
  * Model extension for managing models.
  */
-export abstract class ModelExtension extends BaseExtension implements ModelInterface {
+export abstract class ModelExtension
+  extends BaseExtension
+  implements ModelInterface
+{
   /**
    * Model extension type.
    */
@@ -20,17 +15,29 @@ export abstract class ModelExtension extends BaseExtension implements ModelInter
     return ExtensionTypeEnum.Model
   }
 
-  abstract downloadModel(
-    model: Model,
-    gpuSettings?: GpuSetting,
-    network?: { proxy: string; ignoreSSL?: boolean }
+  abstract configurePullOptions(configs: { [key: string]: any }): Promise<any>
+  abstract getModels(): Promise<Model[]>
+  abstract pullModel(model: string, id?: string, name?: string): Promise<void>
+  abstract cancelModelPull(modelId: string): Promise<void>
+  abstract importModel(
+    model: string,
+    modePath: string,
+    name?: string,
+    optionType?: OptionType
   ): Promise<void>
-  abstract cancelModelDownload(modelId: string): Promise<void>
-  abstract deleteModel(model: ModelFile): Promise<void>
-  abstract getDownloadedModels(): Promise<ModelFile[]>
-  abstract getConfiguredModels(): Promise<ModelFile[]>
-  abstract importModels(models: ImportingModel[], optionType: OptionType): Promise<void>
-  abstract updateModelInfo(modelInfo: Partial<ModelFile>): Promise<ModelFile>
-  abstract fetchHuggingFaceRepoData(repoId: string): Promise<HuggingFaceRepoData>
-  abstract getDefaultModel(): Promise<Model>
+  abstract updateModel(modelInfo: Partial<Model>): Promise<Model>
+  abstract deleteModel(model: string): Promise<void>
+  abstract isModelLoaded(model: string): Promise<boolean>
+  /**
+   * Get model sources
+   */
+  abstract getSources(): Promise<ModelSource[]>
+  /**
+   * Add a model source
+   */
+  abstract addSource(source: string): Promise<void>
+  /**
+   * Delete a model source
+   */
+  abstract deleteSource(source: string): Promise<void>
 }

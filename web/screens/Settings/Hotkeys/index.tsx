@@ -1,4 +1,7 @@
 import { ScrollArea, Badge } from '@janhq/joi'
+import { useAtomValue } from 'jotai'
+
+import { showScrollBarAtom } from '@/helpers/atoms/Setting.atom'
 
 const availableHotkeys = [
   {
@@ -39,19 +42,15 @@ const availableHotkeys = [
     combination: 'Shift Enter',
     description: 'Insert a new line (in input field)',
   },
-  {
-    combination: 'Arrow Up',
-    description: 'Navigate to previous option (within search dialog)',
-  },
-  {
-    combination: 'Arrow Down',
-    description: 'Navigate to next option (within search dialog)',
-  },
 ]
 
 const Hotkeys = () => {
+  const showScrollBar = useAtomValue(showScrollBarAtom)
   return (
-    <ScrollArea className="h-full w-full p-4">
+    <ScrollArea
+      type={showScrollBar ? 'always' : 'scroll'}
+      className="h-full w-full p-4"
+    >
       <div className="mb-2 flex flex-col items-center justify-center gap-2">
         <div className="hidden w-full gap-x-4 border-b border-[hsla(var(--app-border))] pb-2 sm:flex">
           <div className="w-1/2 pb-2">

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { Accordion, AccordionItem } from '@janhq/joi'
+import { extractInferenceParams, extractModelLoadParams } from '@janhq/core'
+import { Accordion, AccordionItem, Input } from '@janhq/joi'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { AlertTriangleIcon, InfoIcon } from 'lucide-react'
+import { AlertTriangleIcon, CheckIcon, CopyIcon, InfoIcon } from 'lucide-react'
 
 import EngineSetting from '@/containers/EngineSetting'
 import { modalTroubleShootingAtom } from '@/containers/ModalTroubleShoot'
@@ -12,33 +13,43 @@ import RightPanelContainer from '@/containers/RightPanelContainer'
 
 import { loadModelErrorAtom } from '@/hooks/useActiveModel'
 
+import { useClipboard } from '@/hooks/useClipboard'
+
 import { getConfigurationsData } from '@/utils/componentSettings'
 
 import {
-  extractInferenceParams,
-  extractModelLoadParams,
-} from '@/utils/modelParam'
-
-import { serverEnabledAtom } from '@/helpers/atoms/LocalServer.atom'
+  LocalAPIserverModelParamsAtom,
+  serverEnabledAtom,
+} from '@/helpers/atoms/LocalServer.atom'
 import { selectedModelAtom } from '@/helpers/atoms/Model.atom'
 
 const LocalServerRightPanel = () => {
   const loadModelError = useAtomValue(loadModelErrorAtom)
+  const setLocalAPIserverModelParams = useSetAtom(LocalAPIserverModelParamsAtom)
   const serverEnabled = useAtomValue(serverEnabledAtom)
   const setModalTroubleShooting = useSetAtom(modalTroubleShootingAtom)
 
   const selectedModel = useAtomValue(selectedModelAtom)
 
+  const clipboard = useClipboard({ timeout: 1000 })
+
   const [currentModelSettingParams, setCurrentModelSettingParams] = useState(
     extractModelLoadParams(selectedModel?.settings)
   )
 
+  const overriddenSettings =
+    selectedModel?.settings.ctx_len && selectedModel.settings.ctx_len > 2048
+      ? { ctx_len: 4096 }
+      : {}
+
   useEffect(() => {
     if (selectedModel) {
-      setCurrentModelSettingParams(
-        extractModelLoadParams(selectedModel?.settings)
-      )
+      setCurrentModelSettingParams({
+        ...selectedModel?.settings,
+        ...overriddenSettings,
+      })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModel])
 
   const modelRuntimeParams = extractInferenceParams(selectedModel?.settings)
@@ -57,6 +68,7 @@ const LocalServerRightPanel = () => {
       componentDataEngineSetting.filter(
         (x) => x.key !== 'prompt_template' && x.key !== 'embedding'
       ),
+
     [componentDataEngineSetting]
   )
 
@@ -66,15 +78,26 @@ const LocalServerRightPanel = () => {
     )
   }, [componentDataRuntimeSetting])
 
+  const onUpdateParams = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setLocalAPIserverModelParams(() => {
+      return { ...currentModelSettingParams }
+    })
+  }, [currentModelSettingParams, setLocalAPIserverModelParams])
+
   const onValueChanged = useCallback(
-    (key: string, value: string | number | boolean) => {
-      setCurrentModelSettingParams({
-        ...currentModelSettingParams,
+    (key: string, value: string | number | boolean | string[]) => {
+      setCurrentModelSettingParams((prevParams) => ({
+        ...prevParams,
         [key]: value,
-      })
+      }))
     },
-    [currentModelSettingParams]
+    []
   )
+
+  useEffect(() => {
+    onUpdateParams()
+  }, [currentModelSettingParams, onUpdateParams])
 
   return (
     <RightPanelContainer>
@@ -91,6 +114,34 @@ const LocalServerRightPanel = () => {
         </div>
 
         <ModelDropdown strictedThread={false} disabled={serverEnabled} />
+
+        <div className="mt-2">
+          <Input
+            value={selectedModel?.id || ''}
+            className="cursor-pointer text-[hsla(var(--text-secondary))] hover:border-[hsla(var(--app-border))] focus-visible:outline-0 focus-visible:ring-0"
+            readOnly
+            onClick={() => {
+              clipboard.copy(selectedModel?.id)
+            }}
+            suffixIcon={
+              selectedModel ? (
+                clipboard.copied ? (
+                  <CheckIcon
+                    size={14}
+                    className="text-[hsla(var(--success-bg))]"
+                  />
+                ) : (
+                  <CopyIcon
+                    size={14}
+                    className="cursor-pointer text-[hsla(var(--text-secondary))]"
+                  />
+                )
+              ) : (
+                <></>
+              )
+            }
+          />
+        </div>
 
         {loadModelError && serverEnabled && (
           <div className="mt-3 flex space-x-2">
@@ -120,6 +171,7 @@ const LocalServerRightPanel = () => {
             <ModelSetting
               componentProps={modelSettings}
               onValueChanged={onValueChanged}
+              disabled={serverEnabled}
             />
           </AccordionItem>
         )}
@@ -129,6 +181,7 @@ const LocalServerRightPanel = () => {
             <EngineSetting
               componentData={engineSettings}
               onValueChanged={onValueChanged}
+              disabled={serverEnabled}
             />
           </AccordionItem>
         )}

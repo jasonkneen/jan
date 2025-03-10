@@ -1,5 +1,11 @@
 import { Fragment, useCallback, useState } from 'react'
 
+import {
+  EngineManager,
+  InferenceEngine,
+  Model,
+  ModelSettingParams,
+} from '@janhq/core'
 import { Button, Tooltip, Select, Input, Checkbox } from '@janhq/joi'
 
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
@@ -22,15 +28,19 @@ import {
   hostOptions,
 } from '@/helpers/atoms/ApiServer.atom'
 
-import { serverEnabledAtom } from '@/helpers/atoms/LocalServer.atom'
+import {
+  LocalAPIserverModelParamsAtom,
+  serverEnabledAtom,
+} from '@/helpers/atoms/LocalServer.atom'
 import { selectedModelAtom } from '@/helpers/atoms/Model.atom'
 
 const LocalServerLeftPanel = () => {
   const [errorRangePort, setErrorRangePort] = useState(false)
   const [errorPrefix, setErrorPrefix] = useState(false)
   const [serverEnabled, setServerEnabled] = useAtom(serverEnabledAtom)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const { startModel, stateModel } = useActiveModel()
+  const { stateModel } = useActiveModel()
   const selectedModel = useAtomValue(selectedModelAtom)
 
   const [isCorsEnabled, setIsCorsEnabled] = useAtom(apiServerCorsEnabledAtom)
@@ -41,8 +51,18 @@ const LocalServerLeftPanel = () => {
   const [port, setPort] = useAtom(apiServerPortAtom)
   const [prefix, setPrefix] = useAtom(apiServerPrefix)
   const setLoadModelError = useSetAtom(loadModelErrorAtom)
-
+  const localAPIserverModelParams = useAtomValue(LocalAPIserverModelParamsAtom)
   const FIRST_TIME_VISIT_API_SERVER = 'firstTimeVisitAPIServer'
+
+  const model: Model | undefined = selectedModel
+    ? {
+        ...selectedModel,
+        object: selectedModel.object || '',
+        settings: (typeof localAPIserverModelParams === 'object'
+          ? { ...(localAPIserverModelParams as ModelSettingParams) }
+          : { ...selectedModel.settings }) as ModelSettingParams,
+      }
+    : undefined
 
   const [firstTimeVisitAPIServer, setFirstTimeVisitAPIServer] =
     useState<boolean>(false)
@@ -66,6 +86,7 @@ const LocalServerLeftPanel = () => {
   const onStartServerClick = async () => {
     if (selectedModel == null) return
     try {
+      setIsLoading(true)
       const isStarted = await window.core?.api?.startServer({
         host,
         port,
@@ -78,9 +99,13 @@ const LocalServerLeftPanel = () => {
         localStorage.setItem(FIRST_TIME_VISIT_API_SERVER, 'false')
         setFirstTimeVisitAPIServer(false)
       }
-      startModel(selectedModel.id, false).catch((e) => console.error(e))
+      const engine = EngineManager.instance().get(InferenceEngine.cortex)
+      engine?.loadModel(model as Model)
+      // startModel(selectedModel.id, false).catch((e) => console.error(e))
+      setIsLoading(false)
     } catch (e) {
       console.error(e)
+      setIsLoading(false)
       toaster({
         title: `Failed to start server!`,
         description: 'Please check Server Logs for more details.',
@@ -93,6 +118,7 @@ const LocalServerLeftPanel = () => {
     window.core?.api?.stopServer()
     setServerEnabled(false)
     setLoadModelError(undefined)
+    setIsLoading(false)
   }
 
   const onToggleServer = async () => {
@@ -117,6 +143,7 @@ const LocalServerLeftPanel = () => {
               block
               theme={serverEnabled ? 'destructive' : 'primary'}
               disabled={
+                isLoading ||
                 stateModel.loading ||
                 errorRangePort ||
                 errorPrefix ||
@@ -124,56 +151,55 @@ const LocalServerLeftPanel = () => {
               }
               onClick={onToggleServer}
             >
-              {serverEnabled ? 'Stop' : 'Start'} Server
+              {isLoading
+                ? 'Starting...'
+                : serverEnabled
+                  ? 'Stop Server'
+                  : 'Start Server'}
             </Button>
             {serverEnabled && (
-              <Button variant="soft" asChild>
+              <Button variant="soft" asChild className="whitespace-nowrap">
                 <a href={`http://localhost:${port}`} target="_blank">
-                  API Playground <ExternalLinkIcon size={20} className="ml-2" />
+                  <span>API Playground</span>{' '}
+                  <ExternalLinkIcon size={20} className="ml-2" />
                 </a>
               </Button>
             )}
           </div>
         </div>
 
-        <Tooltip
-          trigger={
-            <div className="p-3">
-              <p className="mb-2 block font-semibold">Server Options</p>
+        <div className="p-3">
+          <p className="mb-2 block font-semibold">Server Options</p>
 
-              <div className="flex w-full">
-                <Select
-                  value={host}
-                  onValueChange={(e) => setHost(e)}
-                  disabled={serverEnabled}
-                  options={hostOptions}
-                  block
-                />
-              </div>
+          <div className="flex w-full">
+            <Select
+              value={host}
+              onValueChange={(e) => setHost(e)}
+              disabled={serverEnabled}
+              options={hostOptions}
+              block
+            />
+          </div>
 
-              <div className="relative z-50 mt-2 block">
-                <Input
-                  className={twMerge(
-                    errorRangePort && 'border-[hsla(var(--destructive-bg))]'
-                  )}
-                  type="number"
-                  value={port}
-                  onChange={(e) => {
-                    handleChangePort(e.target.value)
-                  }}
-                  maxLength={5}
-                  disabled={serverEnabled}
-                />
-              </div>
-
-              {errorRangePort && (
-                <p className="mt-2 text-xs text-[hsla(var(--destructive-bg))]">{`The port range should be from 0 to 65536`}</p>
+          <div className="relative mt-2 block">
+            <Input
+              className={twMerge(
+                errorRangePort && 'border-[hsla(var(--destructive-bg))]'
               )}
-            </div>
-          }
-          disabled={!serverEnabled}
-          content="Settings cannot be modified while the server is running"
-        />
+              type="number"
+              value={port}
+              onChange={(e) => {
+                handleChangePort(e.target.value)
+              }}
+              maxLength={5}
+              disabled={serverEnabled}
+            />
+          </div>
+
+          {errorRangePort && (
+            <p className="mt-2 text-xs text-[hsla(var(--destructive-bg))]">{`The port range should be from 0 to 65536`}</p>
+          )}
+        </div>
 
         <div className="space-y-4 px-3">
           <div className="block">

@@ -1,32 +1,18 @@
 import { expect } from '@playwright/test'
 import { page, test, TIMEOUT } from '../config/fixtures'
 
-test('Select GPT model from Hub and Chat with Invalid API Key', async ({
-  hubPage,
-}) => {
-  await hubPage.navigateByMenu()
-  await hubPage.verifyContainerVisible()
+test('show onboarding screen without any threads created or models downloaded', async () => {
+  await page.getByTestId('Thread').first().click({
+    timeout: TIMEOUT,
+  })
+  const denyButton = page.locator('[data-testid="btn-deny-product-analytics"]')
 
-  // Select the first GPT model
-  await page
-    .locator('[data-testid^="use-model-btn"][data-testid*="gpt"]')
-    .first()
-    .click()
+  if ((await denyButton.count()) > 0) {
+    await denyButton.click({ force: true })
+  }
 
-  await page.getByTestId('txt-input-chat').fill('dummy value')
-
-  await page.getByTestId('btn-send-chat').click()
-
-  await page.waitForFunction(
-    () => {
-      const loaders = document.querySelectorAll('[data-testid$="loader"]')
-      return !loaders.length
-    },
-    { timeout: TIMEOUT }
-  )
-
-  const APIKeyError = page.getByTestId('invalid-API-key-error')
-  await expect(APIKeyError).toBeVisible({
+  const onboardScreen = page.getByTestId('onboard-screen')
+  await expect(onboardScreen).toBeVisible({
     timeout: TIMEOUT,
   })
 })

@@ -6,22 +6,22 @@ import {
   InferenceEngine,
   Thread,
   ThreadAssistantInfo,
+  extractInferenceParams,
+  extractModelLoadParams,
 } from '@janhq/core'
 
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 
-import {
-  extractInferenceParams,
-  extractModelLoadParams,
-} from '@/utils/modelParam'
+import { useDebouncedCallback } from 'use-debounce'
 
 import { extensionManager } from '@/extension'
+import { activeAssistantAtom } from '@/helpers/atoms/Assistant.atom'
 import { selectedModelAtom } from '@/helpers/atoms/Model.atom'
 import {
-  ModelParams,
   getActiveThreadModelParamsAtom,
   setThreadModelParamsAtom,
 } from '@/helpers/atoms/Thread.atom'
+import { ModelParams } from '@/types/model'
 
 export type UpdateModelParameter = {
   params?: ModelParams
@@ -32,11 +32,28 @@ export type UpdateModelParameter = {
 
 export default function useUpdateModelParameters() {
   const activeModelParams = useAtomValue(getActiveThreadModelParamsAtom)
+  const [activeAssistant, setActiveAssistant] = useAtom(activeAssistantAtom)
   const [selectedModel] = useAtom(selectedModelAtom)
   const setThreadModelParams = useSetAtom(setThreadModelParamsAtom)
 
+  const updateAssistantExtension = (
+    threadId: string,
+    assistant: ThreadAssistantInfo
+  ) => {
+    return extensionManager
+      .get<ConversationalExtension>(ExtensionTypeEnum.Conversational)
+      ?.modifyThreadAssistant(threadId, assistant)
+  }
+
+  const updateAssistantCallback = useDebouncedCallback(
+    updateAssistantExtension,
+    300
+  )
+
   const updateModelParameter = useCallback(
     async (thread: Thread, settings: UpdateModelParameter) => {
+      if (!activeAssistant) return
+
       const toUpdateSettings = processStopWords(settings.params ?? {})
       const updatedModelParams = settings.modelId
         ? toUpdateSettings
@@ -51,30 +68,34 @@ export default function useUpdateModelParameters() {
       setThreadModelParams(thread.id, updatedModelParams)
       const runtimeParams = extractInferenceParams(updatedModelParams)
       const settingParams = extractModelLoadParams(updatedModelParams)
-
-      const assistants = thread.assistants.map(
-        (assistant: ThreadAssistantInfo) => {
-          assistant.model.parameters = runtimeParams
-          assistant.model.settings = settingParams
-          if (selectedModel) {
-            assistant.model.id = settings.modelId ?? selectedModel?.id
-            assistant.model.engine = settings.engine ?? selectedModel?.engine
-          }
-          return assistant
-        }
-      )
-
-      // update thread
-      const updatedThread: Thread = {
-        ...thread,
-        assistants,
+      const assistantInfo = {
+        ...activeAssistant,
+        model: {
+          ...activeAssistant?.model,
+          parameters: runtimeParams,
+          settings: settingParams,
+          id: settings.modelId ?? selectedModel?.id ?? activeAssistant.model.id,
+          engine:
+            settings.engine ??
+            selectedModel?.engine ??
+            activeAssistant.model.engine,
+        },
       }
+      setActiveAssistant(assistantInfo)
 
-      await extensionManager
-        .get<ConversationalExtension>(ExtensionTypeEnum.Conversational)
-        ?.saveThread(updatedThread)
+      updateAssistantCallback(thread.id, assistantInfo)
     },
-    [activeModelParams, selectedModel, setThreadModelParams]
+    [
+      activeAssistant,
+      selectedModel?.parameters,
+      selectedModel?.settings,
+      selectedModel?.id,
+      selectedModel?.engine,
+      activeModelParams,
+      setThreadModelParams,
+      setActiveAssistant,
+      updateAssistantCallback,
+    ]
   )
 
   const processStopWords = (params: ModelParams): ModelParams => {

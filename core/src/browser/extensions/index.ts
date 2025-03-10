@@ -9,10 +9,7 @@ export { ConversationalExtension } from './conversational'
  */
 export { InferenceExtension } from './inference'
 
-/**
- * Monitoring extension for system monitoring.
- */
-export { MonitoringExtension } from './monitoring'
+
 
 /**
  * Assistant extension for managing assistants.
@@ -28,3 +25,13 @@ export { ModelExtension } from './model'
  * Base AI Engines.
  */
 export * from './engines'
+
+/**
+ *  Engines Management
+ */
+export * from './enginesManagement'
+
+/**
+ *  Hardware Management
+ */
+export * from './hardwareManagement'

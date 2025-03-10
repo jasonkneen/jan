@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 
 import Image from 'next/image'
 
-import { InferenceEngine, Model } from '@janhq/core'
+import { EngineConfig, InferenceEngine } from '@janhq/core'
 import {
   Badge,
   Button,
@@ -12,7 +12,7 @@ import {
   useClickOutside,
 } from '@janhq/joi'
 
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 
 import {
   ChevronDownIcon,
@@ -28,31 +28,33 @@ import ModelLabel from '@/containers/ModelLabel'
 
 import SetupRemoteModel from '@/containers/SetupRemoteModel'
 
+import { useActiveModel } from '@/hooks/useActiveModel'
+
 import { useCreateNewThread } from '@/hooks/useCreateNewThread'
 import useDownloadModel from '@/hooks/useDownloadModel'
 import { modelDownloadStateAtom } from '@/hooks/useDownloadState'
+import { useGetEngines } from '@/hooks/useEngineManagement'
+
+import { useGetFeaturedSources } from '@/hooks/useModelSource'
 import useRecommendedModel from '@/hooks/useRecommendedModel'
 
 import useUpdateModelParameters from '@/hooks/useUpdateModelParameters'
 
-import { formatDownloadPercentage, toGibibytes } from '@/utils/converter'
+import { formatDownloadPercentage, toGigabytes } from '@/utils/converter'
 
-import {
-  getLogoEngine,
-  getTitleByEngine,
-  localEngines,
-  priorityEngine,
-} from '@/utils/modelEngine'
+import { getLogoEngine, getTitleByEngine } from '@/utils/modelEngine'
 
-import { extensionManager } from '@/extension'
+import { extractModelName } from '@/utils/modelSource'
 
-import { inActiveEngineProviderAtom } from '@/helpers/atoms/Extension.atom'
+import { activeAssistantAtom } from '@/helpers/atoms/Assistant.atom'
 import {
   configuredModelsAtom,
   getDownloadingModelAtom,
   selectedModelAtom,
   showEngineListModelAtom,
 } from '@/helpers/atoms/Model.atom'
+
+import { showScrollBarAtom } from '@/helpers/atoms/Setting.atom'
 import {
   activeThreadAtom,
   setThreadModelParamsAtom,
@@ -64,17 +66,24 @@ type Props = {
   disabled?: boolean
 }
 
+export const modelDropdownStateAtom = atom(false)
+
 const ModelDropdown = ({
   disabled,
   chatInputMode,
   strictedThread = true,
 }: Props) => {
   const { downloadModel } = useDownloadModel()
+  const [modelDropdownState, setModelDropdownState] = useAtom(
+    modelDropdownStateAtom
+  )
+  const showScrollBar = useAtomValue(showScrollBarAtom)
 
   const [searchFilter, setSearchFilter] = useState('local')
   const [searchText, setSearchText] = useState('')
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState<boolean>(modelDropdownState)
   const activeThread = useAtomValue(activeThreadAtom)
+  const activeAssistant = useAtomValue(activeAssistantAtom)
   const downloadingModels = useAtomValue(getDownloadingModelAtom)
   const [toggle, setToggle] = useState<HTMLDivElement | null>(null)
   const [selectedModel, setSelectedModel] = useAtom(selectedModelAtom)
@@ -82,42 +91,65 @@ const ModelDropdown = ({
   const [dropdownOptions, setDropdownOptions] = useState<HTMLDivElement | null>(
     null
   )
+  const { sources: featuredModels } = useGetFeaturedSources()
+
+  const { engines } = useGetEngines()
+
   const downloadStates = useAtomValue(modelDownloadStateAtom)
   const setThreadModelParams = useSetAtom(setThreadModelParamsAtom)
   const { updateModelParameter } = useUpdateModelParameters()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const configuredModels = useAtomValue(configuredModelsAtom)
-  const featuredModel = configuredModels.filter((x) =>
-    x.metadata.tags.includes('Featured')
-  )
+  const { stopModel } = useActiveModel()
+
   const { updateThreadMetadata } = useCreateNewThread()
 
-  useClickOutside(() => setOpen(false), null, [dropdownOptions, toggle])
+  const engineList = useMemo(
+    () =>
+      Object.entries(engines ?? {}).flatMap((e) => ({
+        name: e[0],
+        type: e[1][0]?.type === 'remote' ? 'remote' : 'local',
+        engine: e[1][0],
+      })),
+    [engines]
+  )
+
+  useClickOutside(() => handleChangeStateOpen(false), null, [
+    dropdownOptions,
+    toggle,
+  ])
 
   const [showEngineListModel, setShowEngineListModel] = useAtom(
     showEngineListModelAtom
   )
 
-  const isModelSupportRagAndTools = useCallback((model: Model) => {
-    return (
-      model?.engine === InferenceEngine.openai ||
-      localEngines.includes(model?.engine as InferenceEngine)
-    )
-  }, [])
+  const handleChangeStateOpen = useCallback(
+    (state: boolean) => {
+      setOpen(state)
+      setModelDropdownState(state)
+    },
+    [setModelDropdownState]
+  )
 
   const filteredDownloadedModels = useMemo(
     () =>
       configuredModels
+        .concat(
+          downloadedModels.filter(
+            (e) => !configuredModels.some((x) => x.id === e.id)
+          )
+        )
         .filter((e) =>
           e.name.toLowerCase().includes(searchText.toLowerCase().trim())
         )
         .filter((e) => {
           if (searchFilter === 'local') {
-            return localEngines.includes(e.engine)
+            return (
+              engineList.find((t) => t.engine?.engine === e.engine)?.type ===
+              'local'
+            )
           }
-          if (searchFilter === 'remote') {
-            return !localEngines.includes(e.engine)
-          }
+          return true
         })
         .sort((a, b) => a.name.localeCompare(b.name))
         .sort((a, b) => {
@@ -135,8 +167,14 @@ const ModelDropdown = ({
             return 0
           }
         }),
-    [configuredModels, searchText, searchFilter, downloadedModels]
+    [configuredModels, searchText, searchFilter, downloadedModels, engineList]
   )
+
+  useEffect(() => {
+    if (modelDropdownState && chatInputMode) {
+      setOpen(modelDropdownState)
+    }
+  }, [chatInputMode, modelDropdownState])
 
   useEffect(() => {
     if (open && searchInputRef.current) {
@@ -145,21 +183,52 @@ const ModelDropdown = ({
   }, [open])
 
   useEffect(() => {
-    if (!activeThread) return
-    const modelId = activeThread?.assistants?.[0]?.model?.id
+    setShowEngineListModel((prev) => [
+      ...prev,
+      ...engineList
+        .filter((x) => (x.engine?.api_key?.length ?? 0) > 0)
+        .map((e) => e.name),
+    ])
+  }, [setShowEngineListModel, engineList])
 
-    let model = downloadedModels.find((model) => model.id === modelId)
-    if (!model) {
-      model = recommendedModel
+  useEffect(() => {
+    if (!activeThread) return
+    const modelId = activeAssistant?.model?.id
+
+    const model = downloadedModels.find((model) => model.id === modelId)
+    if (model) {
+      if (
+        engines?.[model.engine]?.[0]?.type === 'local' ||
+        (engines?.[model.engine]?.[0]?.api_key?.length ?? 0) > 0
+      )
+        setSelectedModel(model)
+    } else {
+      setSelectedModel(undefined)
     }
-    setSelectedModel(model)
-  }, [recommendedModel, activeThread, downloadedModels, setSelectedModel])
+  }, [
+    recommendedModel,
+    activeThread,
+    downloadedModels,
+    setSelectedModel,
+    activeAssistant?.model?.id,
+    engines,
+  ])
+
+  const isLocalEngine = useCallback(
+    (engine?: string) => {
+      if (!engine) return false
+      return engineList.some((t) => t.name === engine && t.type === 'local')
+    },
+    [engineList]
+  )
 
   const onClickModelItem = useCallback(
     async (modelId: string) => {
+      if (!activeAssistant) return
       const model = downloadedModels.find((m) => m.id === modelId)
       setSelectedModel(model)
       setOpen(false)
+      stopModel()
 
       if (activeThread) {
         // Change assistand tools based on model support RAG
@@ -167,14 +236,14 @@ const ModelDropdown = ({
           ...activeThread,
           assistants: [
             {
-              ...activeThread.assistants[0],
+              ...activeAssistant,
               tools: [
                 {
                   type: 'retrieval',
-                  enabled: isModelSupportRagAndTools(model as Model),
+                  enabled: model?.engine === InferenceEngine.cortex,
                   settings: {
-                    ...(activeThread.assistants[0].tools &&
-                      activeThread.assistants[0].tools[0]?.settings),
+                    ...(activeAssistant.tools &&
+                      activeAssistant.tools[0]?.settings),
                   },
                 },
               ],
@@ -182,15 +251,20 @@ const ModelDropdown = ({
           ],
         })
 
-        const overriddenSettings =
-          model?.settings.ctx_len && model.settings.ctx_len > 4096
-            ? { ctx_len: 4096 }
-            : {}
+        const contextLength = model?.settings.ctx_len
+          ? Math.min(8192, model?.settings.ctx_len ?? 8192)
+          : undefined
+        const overriddenParameters = {
+          ctx_len: contextLength,
+          max_tokens: contextLength
+            ? Math.min(model?.parameters.max_tokens ?? 8192, contextLength)
+            : model?.parameters.max_tokens,
+        }
 
         const modelParams = {
           ...model?.parameters,
           ...model?.settings,
-          ...overriddenSettings,
+          ...overriddenParameters,
         }
 
         // Update model parameter to the thread state
@@ -200,102 +274,29 @@ const ModelDropdown = ({
         if (model)
           updateModelParameter(activeThread, {
             params: modelParams,
-            modelPath: model.file_path,
             modelId: model.id,
             engine: model.engine,
           })
       }
     },
     [
+      activeAssistant,
       downloadedModels,
-      activeThread,
       setSelectedModel,
-      isModelSupportRagAndTools,
+      activeThread,
+      updateThreadMetadata,
       setThreadModelParams,
       updateModelParameter,
-      updateThreadMetadata,
+      stopModel,
     ]
   )
 
-  const [extensionHasSettings, setExtensionHasSettings] = useState<
-    { name?: string; setting: string; apiKey: string; provider: string }[]
-  >([])
-
-  const inActiveEngineProvider = useAtomValue(inActiveEngineProviderAtom)
-
-  useEffect(() => {
-    const getAllSettings = async () => {
-      const extensionsMenu: {
-        name?: string
-        setting: string
-        apiKey: string
-        provider: string
-      }[] = []
-      const extensions = extensionManager.getAll()
-
-      for (const extension of extensions) {
-        if (typeof extension.getSettings === 'function') {
-          const settings = await extension.getSettings()
-
-          if (
-            (settings && settings.length > 0) ||
-            (await extension.installationState()) !== 'NotRequired'
-          ) {
-            extensionsMenu.push({
-              name: extension.productName,
-              setting: extension.name,
-              apiKey:
-                'apiKey' in extension && typeof extension.apiKey === 'string'
-                  ? extension.apiKey
-                  : '',
-              provider:
-                'provider' in extension &&
-                typeof extension.provider === 'string'
-                  ? extension.provider
-                  : '',
-            })
-          }
-        }
-      }
-      setExtensionHasSettings(extensionsMenu)
-    }
-    getAllSettings()
-  }, [])
-
-  const findByEngine = filteredDownloadedModels
-    .filter((x) => !inActiveEngineProvider.includes(x.engine))
-    .map((x) => x.engine)
-
-  const groupByEngine = findByEngine
-    .filter(function (item, index) {
-      if (findByEngine.indexOf(item) === index) return item
-    })
-    .sort((a, b) => {
-      if (priorityEngine.includes(a) && priorityEngine.includes(b)) {
-        return priorityEngine.indexOf(a) - priorityEngine.indexOf(b)
-      } else if (priorityEngine.includes(a)) {
-        return -1
-      } else if (priorityEngine.includes(b)) {
-        return 1
-      } else {
-        return 0 // Leave the rest in their original order
-      }
-    })
-
-  const getEngineStatusReady: InferenceEngine[] = extensionHasSettings
-    ?.filter((e) => e.apiKey.length > 0)
-    .map((x) => x.provider as InferenceEngine)
-
-  useEffect(() => {
-    setShowEngineListModel((prev) => [
-      ...prev,
-      ...(getEngineStatusReady as InferenceEngine[]),
-    ])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setShowEngineListModel, extensionHasSettings])
-
-  const isDownloadALocalModel = downloadedModels.some((x) =>
-    localEngines.includes(x.engine)
+  const isDownloadALocalModel = useMemo(
+    () =>
+      downloadedModels.some((x) =>
+        engineList.some((t) => t.name === x.engine && t.type === 'local')
+      ),
+    [downloadedModels, engineList]
   )
 
   if (strictedThread && !activeThread) {
@@ -307,24 +308,31 @@ const ModelDropdown = ({
       className={twMerge('relative', disabled && 'pointer-events-none')}
       data-testid="model-selector"
     >
-      <div ref={setToggle}>
+      <div className="flex [&>div]:w-full" ref={setToggle}>
         {chatInputMode ? (
           <Badge
             data-testid="model-selector-badge"
             theme="secondary"
             variant={open ? 'solid' : 'outline'}
             className={twMerge(
-              'cursor-pointer',
+              'inline-block max-w-[200px] cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap',
               open && 'border border-transparent'
             )}
-            onClick={() => setOpen(!open)}
+            onClick={() => handleChangeStateOpen(!open)}
           >
-            <span className="line-clamp-1 ">{selectedModel?.name}</span>
+            <span
+              className={twMerge(
+                !selectedModel && 'text-[hsla(var(--text-tertiary))]'
+              )}
+            >
+              {selectedModel?.name || 'Select a model'}
+            </span>
           </Badge>
         ) : (
           <Input
             value={selectedModel?.name || ''}
             className="cursor-pointer"
+            placeholder="Select a model"
             disabled={disabled}
             readOnly
             suffixIcon={
@@ -375,223 +383,258 @@ const ModelDropdown = ({
               }
             />
           </div>
-          <ScrollArea className="h-[calc(100%-90px)] w-full">
-            {groupByEngine.map((engine, i) => {
-              const apiKey = !localEngines.includes(engine)
-                ? extensionHasSettings.filter((x) => x.provider === engine)[0]
-                    ?.apiKey.length > 1
-                : true
-              const engineLogo = getLogoEngine(engine as InferenceEngine)
-              const showModel = showEngineListModel.includes(engine)
-              const onClickChevron = () => {
-                if (showModel) {
-                  setShowEngineListModel((prev) =>
-                    prev.filter((item) => item !== engine)
-                  )
-                } else {
-                  setShowEngineListModel((prev) => [...prev, engine])
+          <ScrollArea
+            type={showScrollBar ? 'always' : 'scroll'}
+            className="h-[calc(100%-90px)] w-full"
+          >
+            {engineList
+              .filter((e) => e.type === searchFilter)
+              .filter(
+                (e) =>
+                  e.type === 'remote' ||
+                  e.name === InferenceEngine.cortex_llamacpp ||
+                  filteredDownloadedModels.some((e) => e.engine === e.name)
+              )
+              .map((engine, i) => {
+                const isConfigured =
+                  engine.type === 'local' ||
+                  ((engine.engine as EngineConfig).api_key?.length ?? 0) > 1
+                const engineLogo = getLogoEngine(engine.name as InferenceEngine)
+                const showModel = showEngineListModel.includes(engine.name)
+                const onClickChevron = () => {
+                  if (showModel) {
+                    setShowEngineListModel((prev) =>
+                      prev.filter((item) => item !== engine.name)
+                    )
+                  } else {
+                    setShowEngineListModel((prev) => [...prev, engine.name])
+                  }
                 }
-              }
-              return (
-                <div
-                  className="relative w-full border-t border-[hsla(var(--app-border))] first:border-t-0"
-                  key={i}
-                >
-                  <div className="mt-2">
-                    <div className="flex items-center justify-between px-4">
-                      <div
-                        className="flex w-full cursor-pointer items-center gap-2 py-1"
-                        onClick={onClickChevron}
-                      >
-                        {engineLogo && (
-                          <Image
-                            className="h-6 w-6 flex-shrink-0"
-                            width={48}
-                            height={48}
-                            src={engineLogo}
-                            alt="logo"
-                          />
-                        )}
-                        <h6 className="font-medium text-[hsla(var(--text-secondary))]">
-                          {getTitleByEngine(engine)}
-                        </h6>
-                      </div>
-                      <div className="-mr-2 flex gap-1">
-                        {!localEngines.includes(engine) && (
-                          <SetupRemoteModel engine={engine} />
-                        )}
-                        {!showModel ? (
-                          <Button theme="icon" onClick={onClickChevron}>
-                            <ChevronDownIcon
-                              size={14}
-                              className="text-[hsla(var(--text-secondary))]"
+                return (
+                  <div
+                    className="relative w-full border-t border-[hsla(var(--app-border))] first:border-t-0"
+                    key={i}
+                  >
+                    <div className="mt-2">
+                      <div className="flex items-center justify-between px-4">
+                        <div
+                          className="flex w-full cursor-pointer items-center gap-2 py-1"
+                          onClick={onClickChevron}
+                        >
+                          {engineLogo && (
+                            <Image
+                              className="h-6 w-6 flex-shrink-0"
+                              width={48}
+                              height={48}
+                              src={engineLogo}
+                              alt="logo"
                             />
-                          </Button>
-                        ) : (
-                          <Button theme="icon" onClick={onClickChevron}>
-                            <ChevronUpIcon
-                              size={14}
-                              className="text-[hsla(var(--text-secondary))]"
+                          )}
+                          <h6 className="font-medium capitalize text-[hsla(var(--text-secondary))]">
+                            {getTitleByEngine(engine.name)}
+                          </h6>
+                        </div>
+                        <div className="-mr-2 flex gap-1">
+                          {engine.type === 'remote' && (
+                            <SetupRemoteModel
+                              engine={engine.name as InferenceEngine}
+                              isConfigured={
+                                (engine.engine.api_key?.length ?? 0) > 0
+                              }
                             />
-                          </Button>
-                        )}
+                          )}
+                          {!showModel ? (
+                            <Button theme="icon" onClick={onClickChevron}>
+                              <ChevronDownIcon
+                                size={14}
+                                className="text-[hsla(var(--text-secondary))]"
+                              />
+                            </Button>
+                          ) : (
+                            <Button theme="icon" onClick={onClickChevron}>
+                              <ChevronUpIcon
+                                size={14}
+                                className="text-[hsla(var(--text-secondary))]"
+                              />
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    {engine === InferenceEngine.nitro &&
-                      !isDownloadALocalModel &&
-                      showModel &&
-                      !searchText.length && (
-                        <ul className="pb-2">
-                          {featuredModel.map((model) => {
+                      {engine.type === 'local' &&
+                        !isDownloadALocalModel &&
+                        showModel &&
+                        !searchText.length && (
+                          <ul className="pb-2">
+                            {featuredModels?.map((model) => {
+                              const isDownloading = downloadingModels.some(
+                                (md) => md === (model.models[0]?.id ?? model.id)
+                              )
+                              return (
+                                <li
+                                  key={model.id}
+                                  className="flex items-center justify-between gap-4 px-3 py-2 hover:bg-[hsla(var(--dropdown-menu-hover-bg))]"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <p
+                                      className="max-w-[200px] overflow-hidden truncate whitespace-nowrap capitalize text-[hsla(var(--text-secondary))]"
+                                      title={model.id}
+                                    >
+                                      {extractModelName(model.id)}
+                                    </p>
+                                    <ModelLabel
+                                      size={model.models[0]?.size}
+                                      compact
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2 text-[hsla(var(--text-tertiary))]">
+                                    <span className="font-medium">
+                                      {toGigabytes(model.models[0]?.size)}
+                                    </span>
+                                    {!isDownloading ? (
+                                      <DownloadCloudIcon
+                                        size={18}
+                                        className="cursor-pointer text-[hsla(var(--app-link))]"
+                                        onClick={() =>
+                                          downloadModel(model.models[0]?.id)
+                                        }
+                                      />
+                                    ) : (
+                                      Object.values(downloadStates)
+                                        .filter(
+                                          (x) =>
+                                            x.modelId ===
+                                            (model.models[0]?.id ?? model.id)
+                                        )
+                                        .map((item) => (
+                                          <ProgressCircle
+                                            key={item.modelId}
+                                            percentage={
+                                              formatDownloadPercentage(
+                                                item?.percent,
+                                                {
+                                                  hidePercentage: true,
+                                                }
+                                              ) as number
+                                            }
+                                            size={100}
+                                          />
+                                        ))
+                                    )}
+                                  </div>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        )}
+
+                      <ul className="pb-2">
+                        {filteredDownloadedModels
+                          .filter(
+                            (x) =>
+                              x.engine === engine.name ||
+                              (x.engine === InferenceEngine.nitro &&
+                                engine.name === InferenceEngine.cortex_llamacpp)
+                          )
+                          .filter((y) => {
+                            if (isLocalEngine(y.engine) && !searchText.length) {
+                              return downloadedModels.find((c) => c.id === y.id)
+                            } else {
+                              return y
+                            }
+                          })
+                          .map((model) => {
+                            if (!showModel) return null
                             const isDownloading = downloadingModels.some(
-                              (md) => md.id === model.id
+                              (md) => md === model.id
+                            )
+                            const isDownloaded = downloadedModels.some(
+                              (c) => c.id === model.id
                             )
                             return (
-                              <li
-                                key={model.id}
-                                className="flex items-center justify-between gap-4 px-3 py-2 hover:bg-[hsla(var(--dropdown-menu-hover-bg))]"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <p
-                                    className="line-clamp-1 text-[hsla(var(--text-secondary))]"
-                                    title={model.name}
+                              <>
+                                {isDownloaded && (
+                                  <li
+                                    key={model.id}
+                                    className={twMerge(
+                                      'flex items-center justify-between gap-4 px-3 py-2 hover:bg-[hsla(var(--dropdown-menu-hover-bg))]',
+                                      !isConfigured
+                                        ? 'cursor-not-allowed text-[hsla(var(--text-tertiary))]'
+                                        : 'text-[hsla(var(--text-primary))]'
+                                    )}
+                                    onClick={() => {
+                                      if (
+                                        !isConfigured &&
+                                        engine.type === 'remote'
+                                      )
+                                        return null
+                                      if (isDownloaded) {
+                                        onClickModelItem(model.id)
+                                      }
+                                    }}
                                   >
-                                    {model.name}
-                                  </p>
-                                  <ModelLabel
-                                    metadata={model.metadata}
-                                    compact
-                                  />
-                                </div>
-                                <div className="flex items-center gap-2 text-[hsla(var(--text-tertiary))]">
-                                  <span className="font-medium">
-                                    {toGibibytes(model.metadata.size)}
-                                  </span>
-                                  {!isDownloading ? (
-                                    <DownloadCloudIcon
-                                      size={18}
-                                      className="cursor-pointer text-[hsla(var(--app-link))]"
-                                      onClick={() => downloadModel(model)}
-                                    />
-                                  ) : (
-                                    Object.values(downloadStates)
-                                      .filter((x) => x.modelId === model.id)
-                                      .map((item) => (
-                                        <ProgressCircle
-                                          key={item.modelId}
-                                          percentage={
-                                            formatDownloadPercentage(
-                                              item?.percent,
-                                              {
-                                                hidePercentage: true,
-                                              }
-                                            ) as number
+                                    <div className="flex gap-x-2">
+                                      <p
+                                        className={twMerge(
+                                          'max-w-[200px] overflow-hidden truncate whitespace-nowrap',
+                                          !isDownloaded &&
+                                            'text-[hsla(var(--text-secondary))]'
+                                        )}
+                                        title={model.name}
+                                      >
+                                        {model.name}
+                                      </p>
+                                      <ModelLabel
+                                        size={model.metadata?.size}
+                                        compact
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[hsla(var(--text-tertiary))]">
+                                      {!isDownloaded && (
+                                        <span className="font-medium">
+                                          {toGigabytes(model.metadata?.size)}
+                                        </span>
+                                      )}
+                                      {!isDownloading && !isDownloaded ? (
+                                        <DownloadCloudIcon
+                                          size={18}
+                                          className="cursor-pointer text-[hsla(var(--app-link))]"
+                                          onClick={() =>
+                                            downloadModel(
+                                              model.sources[0].url,
+                                              model.id
+                                            )
                                           }
-                                          size={100}
                                         />
-                                      ))
-                                  )}
-                                </div>
-                              </li>
+                                      ) : (
+                                        Object.values(downloadStates)
+                                          .filter((x) => x.modelId === model.id)
+                                          .map((item) => (
+                                            <ProgressCircle
+                                              key={item.modelId}
+                                              percentage={
+                                                formatDownloadPercentage(
+                                                  item?.percent,
+                                                  {
+                                                    hidePercentage: true,
+                                                  }
+                                                ) as number
+                                              }
+                                              size={100}
+                                            />
+                                          ))
+                                      )}
+                                    </div>
+                                  </li>
+                                )}
+                              </>
                             )
                           })}
-                        </ul>
-                      )}
-
-                    <ul className="pb-2">
-                      {filteredDownloadedModels
-                        .filter((x) => x.engine === engine)
-                        .filter((y) => {
-                          if (
-                            localEngines.includes(y.engine) &&
-                            !searchText.length
-                          ) {
-                            return downloadedModels.find((c) => c.id === y.id)
-                          } else {
-                            return y
-                          }
-                        })
-                        .map((model) => {
-                          if (!showModel) return null
-                          const isDownloading = downloadingModels.some(
-                            (md) => md.id === model.id
-                          )
-                          const isdDownloaded = downloadedModels.some(
-                            (c) => c.id === model.id
-                          )
-                          return (
-                            <li
-                              key={model.id}
-                              className={twMerge(
-                                'flex items-center justify-between gap-4 px-3 py-2 hover:bg-[hsla(var(--dropdown-menu-hover-bg))]',
-                                !apiKey
-                                  ? 'cursor-not-allowed text-[hsla(var(--text-tertiary))]'
-                                  : 'text-[hsla(var(--text-primary))]'
-                              )}
-                              onClick={() => {
-                                if (
-                                  !apiKey &&
-                                  !localEngines.includes(model.engine)
-                                )
-                                  return null
-                                if (isdDownloaded) {
-                                  onClickModelItem(model.id)
-                                }
-                              }}
-                            >
-                              <div className="flex gap-x-2">
-                                <p
-                                  className={twMerge(
-                                    'line-clamp-1',
-                                    !isdDownloaded &&
-                                      'text-[hsla(var(--text-secondary))]'
-                                  )}
-                                  title={model.name}
-                                >
-                                  {model.name}
-                                </p>
-                                <ModelLabel metadata={model.metadata} compact />
-                              </div>
-                              <div className="flex items-center gap-2 text-[hsla(var(--text-tertiary))]">
-                                {!isdDownloaded && (
-                                  <span className="font-medium">
-                                    {toGibibytes(model.metadata.size)}
-                                  </span>
-                                )}
-                                {!isDownloading && !isdDownloaded ? (
-                                  <DownloadCloudIcon
-                                    size={18}
-                                    className="cursor-pointer text-[hsla(var(--app-link))]"
-                                    onClick={() => downloadModel(model)}
-                                  />
-                                ) : (
-                                  Object.values(downloadStates)
-                                    .filter((x) => x.modelId === model.id)
-                                    .map((item) => (
-                                      <ProgressCircle
-                                        key={item.modelId}
-                                        percentage={
-                                          formatDownloadPercentage(
-                                            item?.percent,
-                                            {
-                                              hidePercentage: true,
-                                            }
-                                          ) as number
-                                        }
-                                        size={100}
-                                      />
-                                    ))
-                                )}
-                              </div>
-                            </li>
-                          )
-                        })}
-                    </ul>
+                      </ul>
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
           </ScrollArea>
         </div>
       </div>

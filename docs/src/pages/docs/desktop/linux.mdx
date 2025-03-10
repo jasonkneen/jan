@@ -1,0 +1,349 @@
+---
+title: Linux
+description: Get started quickly with Jan, a ChatGPT-alternative that runs on your own computer, with a local API server. Learn how to install Jan and select an AI model to start chatting.
+keywords:
+  [
+    Jan,
+    Customizable Intelligence, LLM,
+    local AI,
+    privacy focus,
+    free and open source,
+    private and offline,
+    conversational AI,
+    no-subscription fee,
+    large language models,
+    quickstart,
+    getting started,
+    using AI model,
+    installation,
+    "desktop"
+  ]
+---
+
+
+import FAQBox from '@/components/FaqBox'
+import { Tabs, Callout, Steps } from 'nextra/components'
+import { Settings } from 'lucide-react'
+
+
+
+# Linux Installation
+To install Jan desktop on Linux, follow the steps below:
+## Compatibility
+Ensure that your system meets the following requirements to use Jan effectively:
+
+<Tabs items={['OS', 'CPU', 'RAM', 'GPU', 'Disk']}>
+
+<Tabs.Tab>
+#### Debian-based (Supports `.deb` and `AppImage`)
+- Debian
+- Ubuntu and derivatives:
+  - Ubuntu Desktop LTS (official)/Ubuntu Server LTS (only for server)
+  - Edubuntu (Mainly desktop)
+  - Kubuntu (Desktop only)
+  - Lubuntu (Both desktop and server, though mainly desktop)
+  - Ubuntu Budgie (Mainly desktop)
+  - Ubuntu Cinnamon (Desktop only)
+  - Ubuntu Kylin (Both desktop and server)
+  - Ubuntu MATE (Desktop only)
+
+#### RHEL-based (Supports `.rpm` and `AppImage`)
+- RHEL-based (Server only)
+- Fedora
+
+#### Arch-based
+- Arch Linux (Mainly desktop)
+- SteamOS (Desktop only)
+
+#### Independent
+- openSUSE (Both desktop and server)
+
+<Callout type="info">
+Please check whether your Linux distribution supports desktop, server, or both environments.
+</Callout>
+</Tabs.Tab>
+
+<Tabs.Tab>
+- Haswell processors (Q2 2013) and newer
+- Tiger Lake (Q3 2020) and newer for Celeron and Pentium processors
+- Excavator processors (Q2 2015) and newer
+
+<Callout type="info">
+Jan requires a processor with **AVX2 or newer** for optimal performance. See [full list of supported processors](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions#CPUs_with_AVX2). While Jan may run on processors with only AVX support, performance will be significantly reduced.
+</Callout>
+</Tabs.Tab>
+
+<Tabs.Tab>
+- 8GB → up to 3B parameter models (int4)
+- 16GB → up to 7B parameter models (int4)
+- 32GB → up to 13B parameter models (int4)
+
+<Callout type="info">
+DDR2 RAM minimum supported, newer generations recommended for better performance.
+</Callout>
+</Tabs.Tab>
+
+<Tabs.Tab>
+- 6GB → up to 3B parameter models (int4) 
+- 8GB → up to 7B parameter models (int4)
+- 12GB → up to 13B parameter models (int4)
+
+<Callout type="info">
+Minimum 6GB VRAM recommended for NVIDIA, AMD, or Intel Arc GPUs.
+</Callout>
+</Tabs.Tab>
+
+<Tabs.Tab>
+At least **10GB** for app installation and model downloads.
+</Tabs.Tab>
+
+</Tabs>
+
+## Install Jan
+
+To install Jan, follow the steps below:
+
+<Steps>
+
+### Step 1: Download Application
+
+Jan provides 3 types of releases:
+<Tabs items={['Stable Release', 'Beta Release', 'Nightly Release']}>
+<Tabs.Tab>
+Please download Jan from official distributions, or build it from source.
+  - Download Jan on **Ubuntu**: [jan.deb](https://app.jan.ai/download/latest/linux-amd64-deb)
+  - Download Jan on **Fedora**: [jan.AppImage](https://app.jan.ai/download/latest/linux-amd64-appimage)
+- Official Website: https://jan.ai/download
+
+</Tabs.Tab>
+<Tabs.Tab>
+
+Beta releases let you test new features, which may be buggy:
+  - Download Jan's Beta Version on **Ubuntu**: [jan.deb](https://app.jan.ai/download/beta/linux-amd64-deb)
+  - Download Jan's Beta Version on **Fedora**: [jan.AppImage](https://app.jan.ai/download/beta/linux-amd64-appimage)
+
+<Callout type="info">
+Keep in mind that this build might crash frequently or contain bugs!
+</Callout>
+</Tabs.Tab>
+<Tabs.Tab>
+
+Nightly releases are for internal team to test new feature builds everyday, which is very buggy:
+
+ - Download Jan's Nightly Version on **Ubuntu**: [jan.deb](https://app.jan.ai/download/nightly/linux-amd64-deb)
+ - Download Jan's Nightly Version on **Fedora**: [jan.AppImage](https://app.jan.ai/download/nightly/linux-amd64-appimage)
+
+<Callout type="info">
+Keep in mind that this build crashes frequently or contains bugs!
+</Callout>
+</Tabs.Tab>
+</Tabs>
+
+### Step 2: Install Application
+
+Here are the steps to install Jan on Linux based on your Linux distribution:
+
+<Tabs items={['Ubuntu', 'Fedora']}>
+<Tabs.Tab>
+Install Jan using either **dpkg** or **apt-get**:
+##### dpkg
+```bash
+# Install Jan using dpkg
+sudo dpkg -i jan-linux-amd64-{version}.deb
+```
+
+##### apt-get
+```bash
+# Install Jan using apt-get
+sudo apt-get install ./jan-linux-amd64-{version}.deb
+# where jan-linux-amd64-{version}.deb is the path to the Jan package
+```
+</Tabs.Tab>
+
+<Tabs.Tab>
+1. Make the AppImage executable using the following command:
+```bash
+chmod +x jan-linux-x86_64-{version}.AppImage
+```
+
+2. Run the AppImage file using the following command:
+```bash
+./jan-linux-x86_64-{version}.AppImage
+```
+</Tabs.Tab>
+</Tabs>
+
+</Steps>
+
+
+## Data Folder
+
+By default, Jan is installed in the following directory:
+
+```bash
+# Custom installation directory
+$XDG_CONFIG_HOME = /home/username/custom_config
+
+or
+
+# Default installation directory
+~/.config/Jan/data
+
+```
+See [Jan Data Folder](/docs/data-folder) for more details about the data folder structure.
+
+
+## GPU Acceleration
+Once Jan is installed and you have a GPU, you can use your GPU to accelerate the model's performance.
+
+<Tabs items={['NVIDIA GPU', 'AMD GPU', 'Intel Arc GPU']}>
+
+<Tabs.Tab>
+<Steps>
+
+### Step 1: Verify Hardware & Install Dependencies
+**1.1. Check GPU Detection**
+
+To verify that your system recognizes the NVIDIA GPU:
+```
+lspci | grep -i nvidia
+```
+
+**1.2. Install Required components**
+**NVIDIA Driver:**
+1. Install [NVIDIA Driver](https://www.nvidia.com/en-us/drivers/) for your GPU (NVIDIA driver **470.63.01 or higher**).
+2. Verify installation:
+
+```
+nvidia-smi
+```
+Expected output should show your GPU model and driver version.
+
+**CUDA Toolkit:**
+1. Download and install [CUDA toolkit](https://developer.nvidia.com/cuda-downloads) (**CUDA 11.7 or higher**)
+2. Verify installation:
+
+```
+nvcc --version
+```
+**Linux Additional Requirements:**
+1. Required packages are installed:
+```
+sudo apt update
+sudo apt install gcc-11 g++-11 cpp-11
+```
+2. Set up CUDA environment:
+```
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64
+```
+See [detailed instructions](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#post-installation-actions).
+
+### Step 2: Enable GPU Acceleration
+1. Navigate to **Settings** (<Settings width={16} height={16} style={{display:"inline"}}/>) > **Advanced Settings** 
+2. At **GPU Acceleration**, toggle on and select your preferred GPU(s)
+3. App reload is required after the selection
+
+
+<Callout type="info">
+While **Vulkan** can enable Nvidia GPU acceleration in the Jan app, **CUDA** is recommended for faster performance.
+</Callout>
+
+</Steps>
+
+</Tabs.Tab>
+
+<Tabs.Tab>
+AMD GPUs require **Vulkan** support.
+
+<Callout type="warning">
+ This feature is currently experimental and must be enabled through [Experimental Mode](/docs/settings#experimental-mode) in **Advanced Settings**.
+</Callout>
+
+1. Navigate to **Settings** (<Settings width={16} height={16} style={{display:"inline"}}/>) > **Advanced Settings** 
+2. Enable **Experimental Mode**
+3. Under **GPU Acceleration**, enable **Vulkan Support**
+4. At **GPU Acceleration**, toggle on and select your preferred GPU(s)
+5. App reload is required after the selection
+
+</Tabs.Tab>
+
+<Tabs.Tab>
+Intel Arc GPUs require **Vulkan** support. 
+
+<Callout type="warning">
+ This feature is currently experimental and must be enabled through [Experimental Mode](/docs/settings#experimental-mode) in **Advanced Settings**.
+</Callout>
+
+1. Navigate to **Settings** (<Settings width={16} height={16} style={{display:"inline"}}/>) > **Advanced Settings** 
+2. Enable **Experimental Mode**
+3. Under **GPU Acceleration**, enable **Vulkan Support**
+4. At **GPU Acceleration**, toggle on and select your preferred GPU(s)
+5. App reload is required after the selection
+</Tabs.Tab>
+
+</Tabs>
+
+## Uninstall Jan
+
+Open **Terminal** and run these commands to remove all Jan-related data:
+<Tabs items={['Ubuntu', 'Fedora']}>
+<Tabs.Tab>
+
+```bash
+# Uninstall Jan
+sudo apt-get remove jan
+
+# Remove the Jan data folder
+rm -rf Jan
+
+# Delete the application data
+rm -rf ~/.config/Jan/data
+
+# Delete the application cache
+rm -rf ~/.config/Jan/cache
+```
+</Tabs.Tab>
+<Tabs.Tab>
+
+```bash
+# Uninstall Jan
+sudo dnf remove jan
+
+# Delete the application data
+rm -rf ~/.config/Jan/data
+
+# Delete the application cache
+rm -rf ~/.config/Jan/cache
+```
+</Tabs.Tab>
+</Tabs>
+
+<Callout type="warning">
+Deleted data folders cannot be restored. Make sure to backup any important data before proceeding with deletion.
+</Callout>
+
+{/* ## FAQs
+
+<FAQBox title="What are Nightly Releases, and how can I access them?">
+Nightly Releases allow you to test new features and previews of upcoming stable releases. You can download them from Jan's GitHub repository. However, remember that these builds might contain bugs and crash frequently.
+</FAQBox>
+<FAQBox title="Can I move the Jan data folder to a different location?">
+Yes, you can move the Jan data folder.
+</FAQBox>
+<FAQBox title="How do I enable GPU acceleration for better performance?">
+Depending on your GPU type (NVIDIA, AMD, or Intel), follow the respective instructions provided in the [GPU Acceleration](https://www.notion.so/docs/desktop/windows#gpu-acceleration) section above.
+</FAQBox>
+<FAQBox title="Can I recover the deleted Jan data folder after uninstallation?">
+No, it cannot be restored once you delete the Jan data folder during uninstallation.
+</FAQBox>
+<FAQBox title="Can I use the AppImage in any distribution?">
+Yes, `.AppImage` is designed to be distribution-agnostic, meaning it can run on various Linux distributions without requiring installation. You can use the Jan `.AppImage` on any Linux distribution that supports the `AppImage` format.
+</FAQBox>
+<FAQBox title="Can the .deb file be used on distributions other than Debian-based ones?">
+No, `.deb` files are specifically intended for Debian-based distributions and may not be compatible with other Linux distributions.
+</FAQBox>
+<Callout type="info">
+Warning: If you have any trouble during installation, please see our [Troubleshooting](/docs/troubleshooting) guide to resolve your problem.
+
+</Callout>
+*/}

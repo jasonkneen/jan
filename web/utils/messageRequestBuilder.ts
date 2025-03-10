@@ -6,14 +6,15 @@ import {
   ChatCompletionRole,
   MessageRequest,
   MessageRequestType,
-  MessageStatus,
   ModelInfo,
   Thread,
   ThreadMessage,
 } from '@janhq/core'
 import { ulid } from 'ulidx'
 
-import { FileType } from '@/containers/Providers/Jotai'
+import { Stack } from '@/utils/Stack'
+
+import { FileInfo } from '@/types/file'
 
 export class MessageRequestBuilder {
   msgId: string
@@ -33,10 +34,10 @@ export class MessageRequestBuilder {
     this.model = model
     this.thread = thread
     this.messages = messages
-      .filter((e) => e.status !== MessageStatus.Error)
+      .filter((e) => !e.metadata?.error)
       .map<ChatCompletionMessage>((msg) => ({
         role: msg.role,
-        content: msg.content[0]?.text.value ?? '',
+        content: msg.content[0]?.text?.value ?? '.',
       }))
   }
 
@@ -44,11 +45,11 @@ export class MessageRequestBuilder {
   pushMessage(
     message: string,
     base64Blob: string | undefined,
-    fileContentType: FileType
+    fileInfo?: FileInfo
   ) {
-    if (base64Blob && fileContentType === 'pdf')
-      return this.addDocMessage(message)
-    else if (base64Blob && fileContentType === 'image') {
+    if (base64Blob && fileInfo?.type === 'pdf')
+      return this.addDocMessage(message, fileInfo?.name)
+    else if (base64Blob && fileInfo?.type === 'image') {
       return this.addImageMessage(message, base64Blob)
     }
     this.messages = [
@@ -75,7 +76,7 @@ export class MessageRequestBuilder {
   }
 
   // Chainable
-  addDocMessage(prompt: string) {
+  addDocMessage(prompt: string, name?: string) {
     const message: ChatCompletionMessage = {
       role: ChatCompletionRole.User,
       content: [
@@ -86,7 +87,7 @@ export class MessageRequestBuilder {
         {
           type: ChatCompletionMessageContentType.Doc,
           doc_url: {
-            url: `threads/${this.thread.id}/files/${this.msgId}.pdf`,
+            url: name ?? `${this.msgId}.pdf`,
           },
         },
       ] as ChatCompletionMessageContent,
@@ -130,12 +131,40 @@ export class MessageRequestBuilder {
     return this
   }
 
+  normalizeMessages = (
+    messages: ChatCompletionMessage[]
+  ): ChatCompletionMessage[] => {
+    const stack = new Stack<ChatCompletionMessage>()
+    for (const message of messages) {
+      if (stack.isEmpty()) {
+        stack.push(message)
+        continue
+      }
+      const topMessage = stack.peek()
+
+      if (message.role === topMessage.role) {
+        // add an empty message
+        stack.push({
+          role:
+            topMessage.role === ChatCompletionRole.User
+              ? ChatCompletionRole.Assistant
+              : ChatCompletionRole.User,
+          content: '.', // some model requires not empty message
+        })
+      }
+      stack.push(message)
+    }
+
+    return stack.reverseOutput()
+  }
+
   build(): MessageRequest {
     return {
       id: this.msgId,
       type: this.type,
+      attachments: [],
       threadId: this.thread.id,
-      messages: this.messages,
+      messages: this.normalizeMessages(this.messages),
       model: this.model,
       thread: this.thread,
     }

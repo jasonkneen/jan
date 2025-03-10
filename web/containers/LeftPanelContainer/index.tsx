@@ -7,27 +7,30 @@ import {
 } from 'react'
 
 import { ScrollArea, useClickOutside, useMediaQuery } from '@janhq/joi'
-import { useAtom, useAtomValue } from 'jotai'
+import { atom, useAtom, useAtomValue } from 'jotai'
 
 import { twMerge } from 'tailwind-merge'
 
 import { showLeftPanelAtom } from '@/helpers/atoms/App.atom'
-import { reduceTransparentAtom } from '@/helpers/atoms/Setting.atom'
+import {
+  reduceTransparentAtom,
+  showScrollBarAtom,
+} from '@/helpers/atoms/Setting.atom'
 
 type Props = PropsWithChildren
 
 const DEFAULT_LEFT_PANEL_WIDTH = 200
-const LEFT_PANEL_WIDTH = 'leftPanelWidth'
+export const LEFT_PANEL_WIDTH = 'leftPanelWidth'
+export const leftPanelWidthAtom = atom(DEFAULT_LEFT_PANEL_WIDTH)
 
 const LeftPanelContainer = ({ children }: Props) => {
   const [leftPanelRef, setLeftPanelRef] = useState<HTMLDivElement | null>(null)
   const [isResizing, setIsResizing] = useState(false)
-  const [threadLeftPanelWidth, setLeftPanelWidth] = useState(
-    Number(localStorage.getItem(LEFT_PANEL_WIDTH)) || DEFAULT_LEFT_PANEL_WIDTH
-  )
+  const [leftPanelWidth, setLeftPanelWidth] = useAtom(leftPanelWidthAtom)
   const [showLeftPanel, setShowLeftPanel] = useAtom(showLeftPanelAtom)
   const matches = useMediaQuery('(max-width: 880px)')
   const reduceTransparent = useAtomValue(reduceTransparentAtom)
+  const showScrollBar = useAtomValue(showScrollBarAtom)
 
   useClickOutside(
     () => matches && showLeftPanel && setShowLeftPanel(false),
@@ -37,10 +40,12 @@ const LeftPanelContainer = ({ children }: Props) => {
 
   const startResizing = useCallback(() => {
     setIsResizing(true)
+    document.body.classList.add('select-none')
   }, [])
 
   const stopResizing = useCallback(() => {
     setIsResizing(false)
+    document.body.classList.remove('select-none')
   }, [])
 
   const resize = useCallback(
@@ -69,7 +74,7 @@ const LeftPanelContainer = ({ children }: Props) => {
         }
       }
     },
-    [isResizing, leftPanelRef, setShowLeftPanel]
+    [isResizing, leftPanelRef, setLeftPanelWidth, setShowLeftPanel]
   )
 
   useEffect(() => {
@@ -83,7 +88,7 @@ const LeftPanelContainer = ({ children }: Props) => {
       window.removeEventListener('mousemove', resize)
       window.removeEventListener('mouseup', stopResizing)
     }
-  }, [resize, stopResizing])
+  }, [resize, setLeftPanelWidth, stopResizing])
 
   return (
     <div
@@ -97,16 +102,19 @@ const LeftPanelContainer = ({ children }: Props) => {
         reduceTransparent &&
           'left-0 border-r border-[hsla(var(--app-border))] bg-[hsla(var(--left-panel-bg))]'
       )}
-      style={{ width: showLeftPanel ? threadLeftPanelWidth : 0 }}
+      style={{ width: showLeftPanel ? leftPanelWidth : 0 }}
       onMouseDown={(e) => isResizing && e.stopPropagation()}
     >
-      <ScrollArea className="h-full w-full">
+      <ScrollArea
+        type={showScrollBar ? 'always' : 'scroll'}
+        className="h-full w-full"
+      >
         {children}
         {showLeftPanel && !matches && (
           <Fragment>
             <div
               className={twMerge(
-                'group/resize absolute right-0 top-0 z-[9999] h-full w-1 flex-shrink-0 flex-grow-0 resize-x blur-sm hover:cursor-col-resize hover:bg-[hsla(var(--resize-bg))]',
+                'group/resize absolute right-0 top-0 z-40 h-full w-1 flex-shrink-0 flex-grow-0 resize-x blur-sm hover:cursor-col-resize hover:bg-[hsla(var(--resize-bg))]',
                 isResizing && 'cursor-col-resize bg-[hsla(var(--resize-bg))]',
                 !reduceTransparent && 'shadow-sm'
               )}

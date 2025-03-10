@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 
-import { InferenceEngine, ModelFile } from '@janhq/core'
+import { Model } from '@janhq/core'
 import { Badge, Button, Tooltip, useClickOutside } from '@janhq/joi'
 import { useAtom } from 'jotai'
 import {
@@ -14,14 +14,16 @@ import { twMerge } from 'tailwind-merge'
 import { useActiveModel } from '@/hooks/useActiveModel'
 import useDeleteModel from '@/hooks/useDeleteModel'
 
-import { toGibibytes } from '@/utils/converter'
+import { useGetEngines } from '@/hooks/useEngineManagement'
 
-import { localEngines } from '@/utils/modelEngine'
+import { toGigabytes } from '@/utils/converter'
+
+import { isLocalEngine } from '@/utils/modelEngine'
 
 import { serverEnabledAtom } from '@/helpers/atoms/LocalServer.atom'
 
 type Props = {
-  model: ModelFile
+  model: Model
   groupTitle?: string
 }
 
@@ -31,6 +33,7 @@ const MyModelList = ({ model }: Props) => {
   const { deleteModel } = useDeleteModel()
   const [more, setMore] = useState(false)
   const [serverEnabled, setServerEnabled] = useAtom(serverEnabledAtom)
+  const { engines } = useGetEngines()
 
   const [menu, setMenu] = useState<HTMLDivElement | null>(null)
   const [toggle, setToggle] = useState<HTMLDivElement | null>(null)
@@ -50,18 +53,17 @@ const MyModelList = ({ model }: Props) => {
     <div className="border border-b-0 border-[hsla(var(--app-border))] bg-[hsla(var(--tertiary-bg))] p-4 first:rounded-t-lg last:rounded-b-lg last:border-b">
       <div className="flex flex-col items-start justify-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-x-8 lg:w-1/2">
-          <div className="flex h-full w-full flex-col items-start justify-between gap-2 lg:flex-row lg:items-center">
+          <div className="flex h-full w-full flex-col items-start justify-between gap-2 lg:flex-row lg:items-center lg:justify-start">
             <h6
               className={twMerge(
                 'font-medium lg:line-clamp-1 lg:min-w-[280px] lg:max-w-[280px]',
-                model.engine !== InferenceEngine.nitro &&
-                  'max-w-none text-[hsla(var(--text-secondary))]'
+                !isLocalEngine(engines, model.engine) && 'max-w-none'
               )}
               title={model.name}
             >
               {model.name}
             </h6>
-            {model.engine === InferenceEngine.nitro && (
+            {isLocalEngine(engines, model.engine) && (
               <div className="flex gap-x-8">
                 <p
                   className="line-clamp-1 text-[hsla(var(--text-secondary))] lg:min-w-[160px] lg:max-w-[160px] xl:max-w-none"
@@ -74,18 +76,18 @@ const MyModelList = ({ model }: Props) => {
           </div>
         </div>
 
-        {localEngines.includes(model.engine) && (
+        {isLocalEngine(engines, model.engine) && (
           <div className="flex gap-x-4">
             <div className="md:min-w-[90px] md:max-w-[90px]">
               <Badge theme="secondary" className="sm:mr-8">
-                {toGibibytes(model.metadata.size)}
+                {model.metadata?.size ? toGigabytes(model.metadata?.size) : '-'}
               </Badge>
             </div>
 
             <div className="relative flex items-center gap-x-4">
               {stateModel.loading && stateModel.model?.id === model.id ? (
                 <Badge
-                  className="inline-flex items-center space-x-2"
+                  className="inline-flex w-[80px] items-center space-x-2"
                   theme="secondary"
                 >
                   <span className="h-2 w-2 rounded-full bg-gray-500" />
@@ -99,7 +101,7 @@ const MyModelList = ({ model }: Props) => {
                 <Badge
                   theme="success"
                   variant="soft"
-                  className="inline-flex items-center space-x-2"
+                  className="inline-flex w-[80px] items-center space-x-2"
                 >
                   <span className="h-2 w-2 rounded-full bg-green-500" />
                   <span>Active</span>
@@ -107,7 +109,7 @@ const MyModelList = ({ model }: Props) => {
               ) : (
                 <Badge
                   theme="secondary"
-                  className="inline-flex items-center space-x-2"
+                  className="inline-flex w-[80px] items-center space-x-2"
                 >
                   <span className="h-2 w-2 rounded-full bg-gray-500" />
                   <span>Inactive</span>
@@ -133,12 +135,11 @@ const MyModelList = ({ model }: Props) => {
                         <div
                           className={twMerge(
                             'flex items-center space-x-2 px-4 py-2 hover:bg-[hsla(var(--dropdown-menu-hover-bg))]',
-                            serverEnabled &&
-                              activeModel &&
-                              activeModel.id !== model.id &&
-                              'pointer-events-none cursor-not-allowed opacity-40'
+                            (serverEnabled || stateModel.loading) &&
+                              'cursor-not-allowed opacity-40'
                           )}
                           onClick={() => {
+                            if (serverEnabled || stateModel.loading) return
                             onModelActionClick(model.id)
                             setMore(false)
                           }}
@@ -160,7 +161,7 @@ const MyModelList = ({ model }: Props) => {
                           </span>
                         </div>
                       }
-                      disabled={!serverEnabled}
+                      disabled={!serverEnabled || stateModel.loading}
                       content={
                         <span>
                           {activeModel && activeModel.id === model.id
@@ -172,13 +173,12 @@ const MyModelList = ({ model }: Props) => {
                     <div
                       className={twMerge(
                         'flex cursor-pointer items-center space-x-2 px-4 py-2 hover:bg-[hsla(var(--dropdown-menu-hover-bg))]',
-                        serverEnabled &&
-                          'pointer-events-none cursor-not-allowed opacity-40'
+                        serverEnabled && ' cursor-not-allowed opacity-40'
                       )}
                       onClick={() => {
                         setTimeout(async () => {
                           if (!serverEnabled) {
-                            await stopModel()
+                            if (activeModel?.id === model.id) await stopModel()
                             deleteModel(model)
                           }
                         }, 500)

@@ -3,7 +3,6 @@ import { basename, dirname, isAbsolute, join, relative } from 'path'
 import { Processor } from './Processor'
 import {
   log as writeLog,
-  appResourcePath,
   getAppConfigurations as appConfiguration,
   updateAppConfiguration,
   normalizeFilePath,
@@ -45,11 +44,8 @@ export class App implements Processor {
   /**
    * Checks if the given path is a subdirectory of the given directory.
    *
-   * @param _event - The IPC event object.
    * @param from - The path to check.
    * @param to - The directory to check against.
-   *
-   * @returns {Promise<boolean>} - A promise that resolves with the result.
    */
   isSubdirectory(from: any, to: any) {
     const rel = relative(from, to)
@@ -79,29 +75,5 @@ export class App implements Processor {
 
   async updateAppConfiguration(args: any) {
     await updateAppConfiguration(args)
-  }
-
-  /**
-   * Start Jan API Server.
-   */
-  async startServer(args?: any) {
-    const { startServer } = require('@janhq/server')
-    return startServer({
-      host: args?.host,
-      port: args?.port,
-      isCorsEnabled: args?.isCorsEnabled,
-      isVerboseEnabled: args?.isVerboseEnabled,
-      schemaPath: join(appResourcePath(), 'docs', 'openapi', 'jan.yaml'),
-      baseDir: join(appResourcePath(), 'docs', 'openapi'),
-      prefix: args?.prefix,
-    })
-  }
-
-  /**
-   * Stop Jan API Server.
-   */
-  stopServer() {
-    const { stopServer } = require('@janhq/server')
-    return stopServer()
   }
 }

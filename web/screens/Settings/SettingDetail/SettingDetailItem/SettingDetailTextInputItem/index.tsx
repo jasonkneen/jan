@@ -7,8 +7,15 @@ import {
 } from '@janhq/core'
 
 import { Input } from '@janhq/joi'
-import { CopyIcon, EyeIcon, FolderOpenIcon } from 'lucide-react'
+import {
+  CheckIcon,
+  CopyIcon,
+  EyeIcon,
+  EyeOffIcon,
+  FolderOpenIcon,
+} from 'lucide-react'
 import { Marked, Renderer } from 'marked'
+import { twMerge } from 'tailwind-merge'
 
 type Props = {
   settingProps: SettingComponentProps
@@ -34,6 +41,7 @@ const SettingDetailTextInputItem = ({
   const { value, type, placeholder, textAlign, inputActions } =
     settingProps.controllerProps as InputComponentProps
   const [obscure, setObscure] = useState(type === 'password')
+  const [copied, setCopied] = useState(false)
 
   const description = marked.parse(settingProps.description ?? '', {
     async: false,
@@ -44,7 +52,11 @@ const SettingDetailTextInputItem = ({
   }, [])
 
   const copy = useCallback(() => {
-    navigator.clipboard.writeText(value)
+    navigator.clipboard.writeText(value as string)
+    if (value.length > 0) {
+      setCopied(true)
+    }
+    setTimeout(() => setCopied(false), 2000) // Reset icon after 2 seconds
   }, [value])
 
   const onAction = useCallback(
@@ -72,19 +84,29 @@ const SettingDetailTextInputItem = ({
           className="font-medium leading-relaxed text-[hsla(var(--text-secondary))]"
         />
       </div>
-      <div className="w-full flex-shrink-0 pr-1 sm:w-1/2">
+      <div
+        className={twMerge(
+          'w-full flex-shrink-0 pr-1 sm:w-1/2',
+          type === 'number' && 'sm:w-22 w-50'
+        )}
+      >
         <Input
           placeholder={placeholder}
           type={obscure ? 'password' : 'text'}
           textAlign={textAlign}
           value={value}
           onChange={(e) => onValueChanged?.(e.target.value)}
-          className="!pr-20"
+          className={twMerge(obscure && '!pr-20')}
           suffixIcon={
-            <InputExtraActions
-              actions={inputActions ?? []}
-              onAction={onAction}
-            />
+            obscure ? (
+              <InputExtraActions
+                actions={inputActions ?? []}
+                onAction={onAction}
+                value={value}
+                copied={copied}
+                obscure={obscure}
+              />
+            ) : undefined
           }
         />
       </div>
@@ -95,11 +117,17 @@ const SettingDetailTextInputItem = ({
 type InputActionProps = {
   actions: InputAction[]
   onAction: (action: InputAction) => void
+  copied: boolean
+  obscure: boolean
+  value: string | string[]
 }
 
 const InputExtraActions: React.FC<InputActionProps> = ({
   actions,
   onAction,
+  value,
+  copied,
+  obscure,
 }) => {
   if (actions.length === 0) return <Fragment />
 
@@ -108,20 +136,37 @@ const InputExtraActions: React.FC<InputActionProps> = ({
       {actions.map((action) => {
         switch (action) {
           case 'copy':
-            return (
-              <CopyIcon
+            return copied ? (
+              <CheckIcon
                 key={action}
                 size={16}
-                onClick={() => onAction(action)}
+                onClick={() => onAction('copy')}
+                className="text-green-600"
               />
+            ) : (
+              <>
+                {value.length > 0 && (
+                  <CopyIcon
+                    key={action}
+                    size={16}
+                    onClick={() => onAction('copy')}
+                  />
+                )}
+              </>
             )
 
           case 'unobscure':
-            return (
+            return obscure ? (
               <EyeIcon
                 key={action}
                 size={16}
-                onClick={() => onAction(action)}
+                onClick={() => onAction('unobscure')}
+              />
+            ) : (
+              <EyeOffIcon
+                key={action}
+                size={16}
+                onClick={() => onAction('unobscure')}
               />
             )
 

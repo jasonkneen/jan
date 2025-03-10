@@ -1,0 +1,263 @@
+---
+title: Windows
+description: Get started quickly with Jan, a ChatGPT-alternative that runs on your own computer, with a local API server. Learn how to install Jan and select an AI model to start chatting.
+keywords:
+  [
+    Jan,
+    Customizable Intelligence, LLM,
+    local AI,
+    privacy focus,
+    free and open source,
+    private and offline,
+    conversational AI,
+    no-subscription fee,
+    large language models,
+    quickstart,
+    getting started,
+    using AI model,
+    installation,
+    "desktop"
+  ]
+---
+
+import { Tabs, Callout, Steps } from 'nextra/components'
+import FAQBox from '@/components/FaqBox'
+import { Settings } from 'lucide-react'
+
+
+# Windows Installation
+To install Jan desktop on Windows, follow the steps below:
+## Compatibility
+Ensure that your system meets the following requirements to use Jan effectively:
+- **Operating System**: Windows 10 or higher.
+- **CPU**
+<Tabs items={['Intel', 'AMD']}>
+<Tabs.Tab>
+- Intel: Haswell (Q2 2013) or newer
+- Intel Celeron/Pentium: Tiger Lake (Q3 2020) or newer
+</Tabs.Tab>
+<Tabs.Tab>
+- Excavator processors (Q2 2015) and newer.
+</Tabs.Tab>
+</Tabs>
+
+<Callout type="info">
+Jan requires a processor with **AVX2 or newer** for optimal performance. See [full list of supported processors](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions#CPUs_with_AVX2). While Jan may run on processors with only AVX support, performance will be significantly reduced.
+</Callout>
+
+- **Memory (RAM)**
+  - 8GB → up to 3B parameter models (int4)
+  - 16GB → up to 7B parameter models (int4)
+  - 32GB → up to 13B parameter models (int4)
+
+<Callout type="info">
+DDR2 RAM is supported but newer RAM generations are recommended for better performance.
+</Callout>
+
+- **GPU**:
+  - 6GB → up to 3B parameter models 
+  - 8GB → up to 7B parameter models 
+  - 12GB → up to 13B parameter models 
+
+<Callout type="info">
+Minimum 6GB VRAM recommended for NVIDIA, AMD, or Intel Arc GPUs.
+</Callout>
+
+- **Storage:** Minimum 10GB free space for application and model downloads
+
+
+## Install Jan
+
+To install Jan, follow the steps below:
+
+<Steps>
+
+### Step 1: Download Application
+
+Jan provides 3 types of releases:
+<Tabs items={['Stable Release', 'Beta Release', 'Nightly Release']}>
+<Tabs.Tab>
+Please download Jan from official distributions, or build it from source.
+
+- [Download Jan's Stable Version](https://app.jan.ai/download/latest/win-x64)
+- Official Website: https://jan.ai/download
+
+</Tabs.Tab>
+<Tabs.Tab>
+
+Beta releases let you test new features, which may be buggy:
+
+[Download Jan's Beta Version](https://app.jan.ai/download/beta/win-x64)
+
+<Callout type="info">
+Keep in mind that this build might crash frequently or contain bugs!
+</Callout>
+</Tabs.Tab>
+<Tabs.Tab>
+
+Nightly releases are for internal team to test new feature builds everyday, which is very buggy:
+
+[Download Jan's Nightly Version](https://app.jan.ai/download/nightly/win-x64)
+
+<Callout type="info">
+Keep in mind that this build crashes frequently or contains bugs!
+</Callout>
+</Tabs.Tab>
+</Tabs>
+
+### Step 2: Install Application
+
+1. Once you have downloaded the Jan app `.exe` file, open the file.
+2. Wait for Jan to be completely installed on your machine.
+3. Once installed, you can access Jan on your machine.
+
+</Steps>
+
+## Data Folder
+
+By default, Jan is installed in the following directory:
+
+```
+# Default installation directory
+~/Users/<YourUsername>/AppData/Roaming/Jan/data
+
+```
+
+See [Jan Data Folder](/docs/data-folder) for more details about the data folder structure.
+
+
+## GPU Acceleration
+Jan can leverage your GPU to significantly improve model performance and inference speed. Here's how to enable GPU acceleration for different hardware:
+
+<Tabs items={['NVIDIA GPU', 'AMD GPU', 'Intel Arc GPU']}>
+
+<Tabs.Tab>
+
+<Steps>
+
+### Step 1: Verify Hardware & Install Dependencies
+**1.1. Check GPU Detection**
+
+To verify that your system recognizes the NVIDIA GPU:
+- Right-click desktop > NVIDIA Control Panel
+- Or check Device Manager > Display Adapters
+
+**1.2. Install Required components**
+**NVIDIA Driver:**
+1. Install [NVIDIA Driver](https://www.nvidia.com/en-us/drivers/) for your GPU (NVIDIA driver **470.63.01 or higher**).
+2. Verify installation:
+
+```
+nvidia-smi
+```
+Expected output should show your GPU model and driver version.
+
+**CUDA Toolkit:**
+1. Download and install [CUDA toolkit](https://developer.nvidia.com/cuda-downloads) (**CUDA 11.7 or higher**)
+2. Verify installation:
+
+```
+nvcc --version
+```
+### Step 2: Enable GPU Acceleration
+1. Navigate to **Settings** (<Settings width={16} height={16} style={{display:"inline"}}/>) > **Advanced Settings** 
+2. At **GPU Acceleration**, toggle on and select your preferred GPU(s)
+3. App reload is required after the selection
+
+<Callout type="info">
+While Jan supports both CUDA and Vulkan for NVIDIA GPUs, we strongly recommend using CUDA for optimal performance.
+</Callout>
+
+</Steps>
+
+</Tabs.Tab>
+
+<Tabs.Tab>
+AMD GPUs require **Vulkan** support.
+
+<Callout type="warning">
+ This feature is currently experimental and must be enabled through [Experimental Mode](/docs/settings#experimental-mode) in **Advanced Settings**.
+</Callout>
+
+1. Navigate to **Settings** (<Settings width={16} height={16} style={{display:"inline"}}/>) > **Advanced Settings** 
+2. Enable **Experimental Mode**
+3. Under **GPU Acceleration**, enable **Vulkan Support**
+4. At **GPU Acceleration**, toggle on and select your preferred GPU(s)
+5. App reload is required after the selection
+
+</Tabs.Tab>
+
+<Tabs.Tab>
+Intel Arc GPUs require **Vulkan** support. 
+
+<Callout type="warning">
+ This feature is currently experimental and must be enabled through [Experimental Mode](/docs/settings#experimental-mode) in **Advanced Settings**.
+</Callout>
+
+1. Navigate to **Settings** (<Settings width={16} height={16} style={{display:"inline"}}/>) > **Advanced Settings** 
+2. Enable **Experimental Mode**
+3. Under **GPU Acceleration**, enable **Vulkan Support**
+4. At **GPU Acceleration**, toggle on and select your preferred GPU(s)
+5. App reload is required after the selection
+</Tabs.Tab>
+
+</Tabs>
+
+
+
+## Uninstall Jan
+
+<Steps>
+
+### Step 1: Remove Application through Control Panel
+
+1. Open **Control Panels**
+2. Go to **Programs** section
+3. Click **Uninstall Program**
+4. Search for **Jan**
+5. Click the **Three Dots Icon** > **Uninstall**
+6. Click **Uninstall** again to confirm
+7. Click **OK**
+
+### Step 2: Handle Jan Data
+When prompted with: `Do you also want to delete the DEFAULT Jan data folder at C:\Users{username}\Jan?`
+- Click **OK** to remove all Jan data
+- Click **Cancel** to keep your Jan data for future installations
+
+### Step 3: Clean Up Remaining Files
+
+To ensure a complete uninstallation, remove the app cache:
+
+1. Navigate to `C:\Users\[username]\AppData\Roaming`
+2. Delete Jan folder
+
+or through **Terminal**:
+```
+cd C:\Users\%USERNAME%\AppData\Roaming
+rmdir /S jan
+```
+</Steps>
+
+<Callout type="warning">
+Deleted data folders cannot be restored. Make sure to backup any important data before proceeding with deletion.
+</Callout>
+
+
+{/* ## FAQs
+
+<FAQBox title="What are Nightly Releases, and how can I access them?">
+Nightly Releases allow you to test new features and previews of upcoming stable releases. You can download them from Jan's GitHub repository. However, remember that these builds might contain bugs and crash frequently.
+</FAQBox>
+<FAQBox title="Can I move the Jan data folder to a different location?">
+Yes, you can move the Jan data folder.
+</FAQBox>
+<FAQBox title="How do I enable GPU acceleration for better performance?">
+Depending on your GPU type (NVIDIA, AMD, or Intel), follow the respective instructions provided in the [GPU Acceleration](https://www.notion.so/docs/desktop/windows#gpu-acceleration) section above.
+</FAQBox>
+<FAQBox title="Can I recover the deleted Jan data folder after uninstallation?">
+No, it cannot be restored once you delete the Jan data folder during uninstallation.
+</FAQBox>
+
+<Callout type="warning">
+If you have any trouble during installation, please see our [Troubleshooting](https://www.notion.so/docs/troubleshooting) guide to resolve your problem.
+</Callout> */}

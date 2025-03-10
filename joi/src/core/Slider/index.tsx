@@ -1,5 +1,6 @@
 import React from 'react'
 import * as SliderPrimitive from '@radix-ui/react-slider'
+import { twMerge } from 'tailwind-merge'
 
 import './styles.scss'
 
@@ -25,7 +26,7 @@ const Slider = ({
   disabled,
 }: Props) => (
   <SliderPrimitive.Root
-    className="slider"
+    className={twMerge('slider', disabled && 'slider--disabled')}
     name={name}
     min={min}
     max={max}
@@ -38,7 +39,9 @@ const Slider = ({
     <SliderPrimitive.Track className="slider__track">
       <SliderPrimitive.Range className="slider__range" />
     </SliderPrimitive.Track>
-    <SliderPrimitive.Thumb className="slider__thumb" />
+    {value?.map((_, i) => (
+      <SliderPrimitive.Thumb className="slider__thumb" key={i} />
+    ))}
   </SliderPrimitive.Root>
 )
 

@@ -1,58 +1,37 @@
 import { useCallback } from 'react'
 
 import {
-  Assistant,
   ConversationalExtension,
   ExtensionTypeEnum,
   Thread,
   ThreadAssistantInfo,
-  ThreadState,
   AssistantTool,
-  ModelFile,
+  Model,
+  Assistant,
 } from '@janhq/core'
-import { atom, useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 
-import { copyOverInstructionEnabledAtom } from '@/containers/CopyInstruction'
+import { useDebouncedCallback } from 'use-debounce'
+
 import { fileUploadAtom } from '@/containers/Providers/Jotai'
 
 import { toaster } from '@/containers/Toast'
 
-import { generateThreadId } from '@/utils/thread'
-
-import { useActiveModel } from './useActiveModel'
 import useRecommendedModel from './useRecommendedModel'
-
 import useSetActiveThread from './useSetActiveThread'
 
 import { extensionManager } from '@/extension'
+import { copyOverInstructionEnabledAtom } from '@/helpers/atoms/App.atom'
 
 import { experimentalFeatureEnabledAtom } from '@/helpers/atoms/AppConfig.atom'
+import { activeAssistantAtom } from '@/helpers/atoms/Assistant.atom'
 import { selectedModelAtom } from '@/helpers/atoms/Model.atom'
 import {
   threadsAtom,
-  threadStatesAtom,
   updateThreadAtom,
   setThreadModelParamsAtom,
-  isGeneratingResponseAtom,
-  activeThreadAtom,
+  createNewThreadAtom,
 } from '@/helpers/atoms/Thread.atom'
-
-const createNewThreadAtom = atom(null, (get, set, newThread: Thread) => {
-  // create thread state for this new thread
-  const currentState = { ...get(threadStatesAtom) }
-
-  const threadState: ThreadState = {
-    hasMore: false,
-    waitingForResponse: false,
-    lastMessage: undefined,
-  }
-  currentState[newThread.id] = threadState
-  set(threadStatesAtom, currentState)
-
-  // add the new thread on top of the thread list to the state
-  const threads = get(threadsAtom)
-  set(threadsAtom, [newThread, ...threads])
-})
 
 export const useCreateNewThread = () => {
   const createNewThread = useSetAtom(createNewThreadAtom)
@@ -64,25 +43,21 @@ export const useCreateNewThread = () => {
   const copyOverInstructionEnabled = useAtomValue(
     copyOverInstructionEnabledAtom
   )
-  const activeThread = useAtomValue(activeThreadAtom)
+  const [activeAssistant, setActiveAssistant] = useAtom(activeAssistantAtom)
 
   const experimentalEnabled = useAtomValue(experimentalFeatureEnabledAtom)
-  const setIsGeneratingResponse = useSetAtom(isGeneratingResponseAtom)
-
-  const { recommendedModel, downloadedModels } = useRecommendedModel()
 
   const threads = useAtomValue(threadsAtom)
-  const { stopInference } = useActiveModel()
+
+  const { recommendedModel } = useRecommendedModel()
+
+  const selectedModel = useAtomValue(selectedModelAtom)
 
   const requestCreateNewThread = async (
-    assistant: Assistant,
-    model?: ModelFile | undefined
+    assistant: (ThreadAssistantInfo & { id: string; name: string }) | Assistant,
+    model?: Model | undefined
   ) => {
-    // Stop generating if any
-    setIsGeneratingResponse(false)
-    stopInference()
-
-    const defaultModel = model ?? recommendedModel ?? downloadedModels[0]
+    const defaultModel = model || selectedModel || recommendedModel
 
     if (!model) {
       // if we have model, which means user wants to create new thread from Model hub. Allow them.
@@ -105,19 +80,27 @@ export const useCreateNewThread = () => {
       enabled: true,
       settings: assistant.tools && assistant.tools[0].settings,
     }
-    const overriddenSettings =
-      defaultModel?.settings.ctx_len && defaultModel.settings.ctx_len > 2048
-        ? { ctx_len: 4096 }
-        : {}
 
-    const overriddenParameters = defaultModel?.parameters.max_tokens
-      ? { max_tokens: 4096 }
-      : {}
+    // Default context length is 8192
+    const contextLength = defaultModel?.settings?.ctx_len
+      ? Math.min(8192, defaultModel?.settings?.ctx_len)
+      : undefined
+
+    const overriddenSettings = {
+      ctx_len: contextLength,
+    }
+
+    // Use ctx length by default
+    const overriddenParameters = {
+      max_tokens: contextLength
+        ? Math.min(defaultModel?.parameters?.max_tokens ?? 8192, contextLength)
+        : defaultModel?.parameters?.max_tokens,
+    }
 
     const createdAt = Date.now()
     let instructions: string | undefined = assistant.instructions
     if (copyOverInstructionEnabled) {
-      instructions = activeThread?.assistants[0]?.instructions ?? undefined
+      instructions = activeAssistant?.instructions ?? undefined
     }
     const assistantInfo: ThreadAssistantInfo = {
       assistant_id: assistant.id,
@@ -132,45 +115,98 @@ export const useCreateNewThread = () => {
       instructions,
     }
 
-    const threadId = generateThreadId(assistant.id)
-    const thread: Thread = {
-      id: threadId,
+    const thread: Partial<Thread> = {
       object: 'thread',
       title: 'New Thread',
       assistants: [assistantInfo],
       created: createdAt,
       updated: createdAt,
+      metadata: {
+        title: 'New Thread',
+        updated_at: Date.now(),
+      },
     }
 
     // add the new thread on top of the thread list to the state
-    //TODO: Why do we have thread list then thread states? Should combine them
-    createNewThread(thread)
+    try {
+      const createdThread = await persistNewThread(thread, assistantInfo)
+      if (!createdThread) throw 'Thread created failed.'
+      createNewThread(createdThread)
 
-    setSelectedModel(defaultModel)
-    setThreadModelParams(thread.id, {
-      ...defaultModel?.settings,
-      ...defaultModel?.parameters,
-      ...overriddenSettings,
-    })
+      setSelectedModel(defaultModel)
+      setThreadModelParams(createdThread.id, {
+        ...defaultModel?.settings,
+        ...defaultModel?.parameters,
+        ...overriddenSettings,
+      })
 
-    // Delete the file upload state
-    setFileUpload([])
-    // Update thread metadata
-    await updateThreadMetadata(thread)
-
-    setActiveThread(thread)
+      // Delete the file upload state
+      setFileUpload(undefined)
+      setActiveThread(createdThread)
+    } catch (ex) {
+      return toaster({
+        title: 'Thread created failed.',
+        description: `To avoid piling up empty threads, please reuse previous one before creating new.`,
+        type: 'error',
+      })
+    }
   }
+
+  const updateThreadExtension = (thread: Thread) => {
+    return extensionManager
+      .get<ConversationalExtension>(ExtensionTypeEnum.Conversational)
+      ?.modifyThread(thread)
+  }
+
+  const updateAssistantExtension = (
+    threadId: string,
+    assistant: ThreadAssistantInfo
+  ) => {
+    return extensionManager
+      .get<ConversationalExtension>(ExtensionTypeEnum.Conversational)
+      ?.modifyThreadAssistant(threadId, assistant)
+  }
+
+  const updateThreadCallback = useDebouncedCallback(updateThreadExtension, 300)
+  const updateAssistantCallback = useDebouncedCallback(
+    updateAssistantExtension,
+    300
+  )
 
   const updateThreadMetadata = useCallback(
     async (thread: Thread) => {
       updateThread(thread)
 
-      await extensionManager
-        .get<ConversationalExtension>(ExtensionTypeEnum.Conversational)
-        ?.saveThread(thread)
+      updateThreadCallback(thread)
+      if (thread.assistants && thread.assistants?.length > 0) {
+        setActiveAssistant(thread.assistants[0])
+        updateAssistantCallback(thread.id, thread.assistants[0])
+      }
     },
-    [updateThread]
+    [
+      updateThread,
+      setActiveAssistant,
+      updateThreadCallback,
+      updateAssistantCallback,
+    ]
   )
+
+  const persistNewThread = async (
+    thread: Partial<Thread>,
+    assistantInfo: ThreadAssistantInfo
+  ): Promise<Thread | undefined> => {
+    return await extensionManager
+      .get<ConversationalExtension>(ExtensionTypeEnum.Conversational)
+      ?.createThread(thread)
+      .then(async (thread) => {
+        await extensionManager
+          .get<ConversationalExtension>(ExtensionTypeEnum.Conversational)
+          ?.createThreadAssistant(thread.id, assistantInfo)
+          .catch(console.error)
+        return thread
+      })
+      .catch(() => undefined)
+  }
 
   return {
     requestCreateNewThread,
