@@ -168,11 +168,19 @@ export const ThreadContent = memo(
     const { streamingContent } = useAppState()
 
     const text = useMemo(
-      () => item.content.find((e) => e.type === 'text')?.text?.value ?? '',
+      () => {
+        const textContent = item.content?.find((e) => e.type === 'text')?.text?.value
+        return typeof textContent === 'string' ? textContent : ''
+      },
       [item.content]
     )
 
     const { reasoningSegment, textSegment } = useMemo(() => {
+      // Ensure text is a string before using includes
+      if (!text || typeof text !== 'string') {
+        return { reasoningSegment: '', textSegment: '' }
+      }
+
       // Check for thinking formats
       const hasThinkTag = text.includes('<think>') && !text.includes('</think>')
       const hasAnalysisChannel =

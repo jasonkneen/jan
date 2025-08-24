@@ -5,6 +5,7 @@ use core::{
     mcp::helpers::clean_up_mcp_servers,
     setup::{self, setup_mcp},
     state::AppState,
+    terminal::manager::TerminalManager,
 };
 use jan_utils::generate_app_token;
 use std::{collections::HashMap, sync::Arc};
@@ -97,6 +98,11 @@ pub fn run() {
             // Download
             core::downloads::commands::download_files,
             core::downloads::commands::cancel_download_task,
+            // Terminal
+            core::terminal::commands::terminal_spawn,
+            core::terminal::commands::terminal_write,
+            core::terminal::commands::terminal_resize,
+            core::terminal::commands::terminal_kill,
         ])
         .manage(AppState {
             app_token: Some(generate_app_token()),
@@ -108,6 +114,7 @@ pub fn run() {
             server_handle: Arc::new(Mutex::new(None)),
             tool_call_cancellations: Arc::new(Mutex::new(HashMap::new())),
         })
+        .manage(TerminalManager::new())
         .setup(|app| {
             app.handle().plugin(
                 tauri_plugin_log::Builder::default()

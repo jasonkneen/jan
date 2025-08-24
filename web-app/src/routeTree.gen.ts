@@ -11,6 +11,7 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
+import { Route as TerminalImport } from './routes/terminal'
 import { Route as SystemMonitorImport } from './routes/system-monitor'
 import { Route as LogsImport } from './routes/logs'
 import { Route as AssistantImport } from './routes/assistant'
@@ -32,6 +33,12 @@ import { Route as SettingsProvidersIndexImport } from './routes/settings/provide
 import { Route as SettingsProvidersProviderNameImport } from './routes/settings/providers/$providerName'
 
 // Create/Update Routes
+
+const TerminalRoute = TerminalImport.update({
+  id: '/terminal',
+  path: '/terminal',
+  getParentRoute: () => rootRoute,
+} as any)
 
 const SystemMonitorRoute = SystemMonitorImport.update({
   id: '/system-monitor',
@@ -180,6 +187,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SystemMonitorImport
       parentRoute: typeof rootRoute
     }
+    '/terminal': {
+      id: '/terminal'
+      path: '/terminal'
+      fullPath: '/terminal'
+      preLoaderRoute: typeof TerminalImport
+      parentRoute: typeof rootRoute
+    }
     '/hub/$modelId': {
       id: '/hub/$modelId'
       path: '/hub/$modelId'
@@ -295,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/assistant': typeof AssistantRoute
   '/logs': typeof LogsRoute
   '/system-monitor': typeof SystemMonitorRoute
+  '/terminal': typeof TerminalRoute
   '/hub/$modelId': typeof HubModelIdRoute
   '/local-api-server/logs': typeof LocalApiServerLogsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
@@ -317,6 +332,7 @@ export interface FileRoutesByTo {
   '/assistant': typeof AssistantRoute
   '/logs': typeof LogsRoute
   '/system-monitor': typeof SystemMonitorRoute
+  '/terminal': typeof TerminalRoute
   '/hub/$modelId': typeof HubModelIdRoute
   '/local-api-server/logs': typeof LocalApiServerLogsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
@@ -340,6 +356,7 @@ export interface FileRoutesById {
   '/assistant': typeof AssistantRoute
   '/logs': typeof LogsRoute
   '/system-monitor': typeof SystemMonitorRoute
+  '/terminal': typeof TerminalRoute
   '/hub/$modelId': typeof HubModelIdRoute
   '/local-api-server/logs': typeof LocalApiServerLogsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
@@ -364,6 +381,7 @@ export interface FileRouteTypes {
     | '/assistant'
     | '/logs'
     | '/system-monitor'
+    | '/terminal'
     | '/hub/$modelId'
     | '/local-api-server/logs'
     | '/settings/appearance'
@@ -385,6 +403,7 @@ export interface FileRouteTypes {
     | '/assistant'
     | '/logs'
     | '/system-monitor'
+    | '/terminal'
     | '/hub/$modelId'
     | '/local-api-server/logs'
     | '/settings/appearance'
@@ -406,6 +425,7 @@ export interface FileRouteTypes {
     | '/assistant'
     | '/logs'
     | '/system-monitor'
+    | '/terminal'
     | '/hub/$modelId'
     | '/local-api-server/logs'
     | '/settings/appearance'
@@ -429,6 +449,7 @@ export interface RootRouteChildren {
   AssistantRoute: typeof AssistantRoute
   LogsRoute: typeof LogsRoute
   SystemMonitorRoute: typeof SystemMonitorRoute
+  TerminalRoute: typeof TerminalRoute
   HubModelIdRoute: typeof HubModelIdRoute
   LocalApiServerLogsRoute: typeof LocalApiServerLogsRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
@@ -451,6 +472,7 @@ const rootRouteChildren: RootRouteChildren = {
   AssistantRoute: AssistantRoute,
   LogsRoute: LogsRoute,
   SystemMonitorRoute: SystemMonitorRoute,
+  TerminalRoute: TerminalRoute,
   HubModelIdRoute: HubModelIdRoute,
   LocalApiServerLogsRoute: LocalApiServerLogsRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
@@ -482,6 +504,7 @@ export const routeTree = rootRoute
         "/assistant",
         "/logs",
         "/system-monitor",
+        "/terminal",
         "/hub/$modelId",
         "/local-api-server/logs",
         "/settings/appearance",
@@ -510,6 +533,9 @@ export const routeTree = rootRoute
     },
     "/system-monitor": {
       "filePath": "system-monitor.tsx"
+    },
+    "/terminal": {
+      "filePath": "terminal.tsx"
     },
     "/hub/$modelId": {
       "filePath": "hub/$modelId.tsx"

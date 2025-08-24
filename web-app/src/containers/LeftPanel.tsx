@@ -13,6 +13,7 @@ import {
   IconX,
   IconSearch,
   IconClipboardSmileFilled,
+  IconTerminal2,
 } from '@tabler/icons-react'
 import { route } from '@/constants/routes'
 import ThreadList from './ThreadList'
@@ -54,6 +55,11 @@ const mainMenus = [
     title: 'common:assistants',
     icon: IconClipboardSmileFilled,
     route: route.assistant,
+  },
+  {
+    title: 'Terminal',
+    icon: IconTerminal2,
+    route: route.terminal,
   },
   {
     title: 'common:hub',

@@ -116,4 +116,21 @@
       @apply !bg-main-view;
     }
   }
+  
+  /* Terminal padding and styling */
+  .terminal-container {
+    border-radius: 0.375rem !important; /* rounded-md */
+    overflow: hidden;
+  }
+  .terminal-container .xterm-viewport {
+    padding: 1px 9px 10px 5px !important; /* top right bottom left */
+    border-radius: 0.375rem !important;
+  }
+  .terminal-container .xterm-screen {
+    padding: 1px 9px 10px 5px !important; /* top right bottom left */
+    border-radius: 0.375rem !important;
+  }
+  .terminal-container .xterm-rows {
+    padding: 1px 9px 10px 5px !important; /* top right bottom left */
+  }
 }

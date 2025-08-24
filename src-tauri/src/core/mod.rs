@@ -7,4 +7,5 @@ pub mod server;
 pub mod setup;
 pub mod state;
 pub mod system;
+pub mod terminal;
 pub mod threads;
